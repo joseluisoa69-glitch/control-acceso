@@ -339,8 +339,14 @@ function doLogin(){
     .then(function(r){
       btn.disabled = false;
       btn.textContent = 'Ingresar al sistema';
+      // Mostrar respuesta cruda para debug
+      console.log('Respuesta servidor:', JSON.stringify(r));
+      if(!r || typeof r !== 'object'){
+        msg('loginMsg','Respuesta inválida del servidor: '+JSON.stringify(r),'danger');
+        return;
+      }
       if(!r.success){
-        msg('loginMsg', r.message || 'Credenciales inválidas', 'danger');
+        msg('loginMsg','❌ '+(r.message || 'Credenciales inválidas'), 'danger');
         return;
       }
       // ENTRAR
@@ -350,15 +356,14 @@ function doLogin(){
       document.getElementById('topDate').textContent =
         new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
       startScanner();
-      // Cargar datos en background
-      if(!C.ok()) precargar().catch(function(){});
+      if(!C.ok()) precargar().catch(function(e){ console.warn('Precarga falló:',e); });
       else poneLogo(C.logo);
     })
     .catch(function(err){
       btn.disabled = false;
       btn.textContent = 'Ingresar al sistema';
-      console.error(err);
-      msg('loginMsg','Error de red. Verifica tu conexión.','danger');
+      console.error('Error fetch login:', err);
+      msg('loginMsg','❌ Error: '+String(err),'danger');
     });
 }
 
