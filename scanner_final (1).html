@@ -388,6 +388,8 @@ function doLogin(){
   .then(function(r){ return r.json(); })
   .then(function(r){
     btn.disabled=false; btn.textContent='Ingresar al sistema';
+    // DEBUG — muestra respuesta cruda del servidor
+    showMsg('lMsg','Servidor: '+JSON.stringify(r),'info');
     if(!r||!r.success){
       registrarFallo();
       var rest=5-fallos; var extra=fallos>0?' ('+rest+' intentos restantes)':'';
