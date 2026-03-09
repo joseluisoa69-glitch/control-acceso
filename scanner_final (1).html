@@ -369,11 +369,96 @@ select.gen-select:focus,input.gen-input:focus{
 <script>
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyME7h87vWO2ZsvCE932oGN36BGIjKgpLCkbNPy-PrE7TJkLkh0fLyBiIzHQPu1YHka/exec';
 
-// ── Estado ──
-let scanner = null, isScanning = false, isProcessing = false;
-let logoDataURL = '';
+// ══════════════════════════════════════════
+// CACHE LOCAL — toda la velocidad está aquí
+// ══════════════════════════════════════════
+const Cache = {
+  personal:    [],   // [{id, nombre, empresa, puesto}]
+  logo:        '',
+  loadedAt:    0,
+  TTL:         30 * 60 * 1000, // 30 minutos
 
-// ── API ──
+  isValid() { return this.personal.length > 0 && (Date.now() - this.loadedAt) < this.TTL; },
+
+  set(personal, logo) {
+    this.personal = personal;
+    this.logo     = logo || '';
+    this.loadedAt = Date.now();
+    // Persistir en sessionStorage por si recargan la página
+    try {
+      sessionStorage.setItem('ca_personal', JSON.stringify(personal));
+      sessionStorage.setItem('ca_logo',     logo || '');
+      sessionStorage.setItem('ca_ts',       String(Date.now()));
+    } catch(e) {}
+  },
+
+  loadFromStorage() {
+    try {
+      const ts = parseInt(sessionStorage.getItem('ca_ts') || '0');
+      if (Date.now() - ts < this.TTL) {
+        const p = sessionStorage.getItem('ca_personal');
+        const l = sessionStorage.getItem('ca_logo');
+        if (p) { this.personal = JSON.parse(p); this.logo = l||''; this.loadedAt = ts; return true; }
+      }
+    } catch(e) {}
+    return false;
+  },
+
+  find(id) {
+    return this.personal.find(p => p.id === String(id).trim()) || null;
+  },
+
+  filter(modo, params) {
+    if (modo === 'todos') return this.personal;
+    if (modo === 'rango') {
+      const ini = parseInt(params.inicio), fin = parseInt(params.fin);
+      return this.personal.filter(p => { const n=parseInt(p.id); return !isNaN(n)&&n>=ini&&n<=fin; });
+    }
+    if (modo === 'individual') {
+      const ids = String(params.ids).split(',').map(x=>x.trim());
+      return this.personal.filter(p => ids.includes(p.id));
+    }
+    return [];
+  },
+
+  clear() {
+    this.personal=[]; this.logo=''; this.loadedAt=0;
+    try { sessionStorage.removeItem('ca_personal'); sessionStorage.removeItem('ca_logo'); sessionStorage.removeItem('ca_ts'); } catch(e){}
+  }
+};
+
+// ══════════════════════════════════════════
+// COLA DE ESCRITURA — registros en background
+// ══════════════════════════════════════════
+const WriteQueue = {
+  queue:    [],
+  running:  false,
+
+  push(payload) {
+    this.queue.push(payload);
+    if (!this.running) this.flush();
+  },
+
+  async flush() {
+    if (this.running || this.queue.length === 0) return;
+    this.running = true;
+    while (this.queue.length > 0) {
+      const item = this.queue[0];
+      try {
+        await api(item);
+        this.queue.shift();
+      } catch(e) {
+        // Reintento en 3s si falla la red
+        await new Promise(r => setTimeout(r, 3000));
+      }
+    }
+    this.running = false;
+  }
+};
+
+// ══════════════════════════════════════════
+// API
+// ══════════════════════════════════════════
 function api(payload) {
   return fetch(APPS_SCRIPT_URL, {
     method:'POST', body:JSON.stringify(payload),
@@ -381,27 +466,37 @@ function api(payload) {
   }).then(r => r.json());
 }
 
-// ── Fecha en topbar ──
+// Carga todo el personal + logo en una sola llamada
+function precargarDatos() {
+  return api({ action:'precargarTodo' }).then(res => {
+    if (res.success) {
+      Cache.set(res.personal, res.logo);
+      console.log('Cache cargado:', res.personal.length, 'personas');
+    }
+    return res;
+  });
+}
+
+// ══════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════
+let scanner = null, isScanning = false, isProcessing = false;
+
+// ── Fecha topbar ──
 function updateDate() {
   const now = new Date();
   document.getElementById('topbarDate').textContent =
     now.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
 }
 
-// ── Cargar logo como fondo ──
-function cargarLogo() {
-  api({ action:'obtenerLogo' }).then(res => {
-    if (res.logo) {
-      logoDataURL = res.logo;
-      const bg = document.getElementById('loginBg');
-      const fallback = document.getElementById('bgFallback');
-      const img = document.createElement('img');
-      img.src = res.logo;
-      img.onerror = () => {};
-      fallback.style.display = 'none';
-      bg.appendChild(img);
-    }
-  }).catch(()=>{});
+// ── Logo fondo login ──
+function mostrarLogoFondo(logoB64) {
+  if (!logoB64) return;
+  const bg = document.getElementById('loginBg');
+  document.getElementById('bgFallback').style.display='none';
+  const img = document.createElement('img');
+  img.src = logoB64;
+  bg.appendChild(img);
 }
 
 // ── UI helpers ──
@@ -424,29 +519,40 @@ function togglePass() {
   i.type = i.type === 'password' ? 'text' : 'password';
 }
 
-// ── LOGIN ──
+// ══════════════════════════════════════════
+// LOGIN — precarga datos durante la auth
+// ══════════════════════════════════════════
 function login() {
   const email = document.getElementById('email').value.trim();
   const pass  = document.getElementById('password').value.trim();
   if (!email || !pass) { showAlert('loginMsg','Completa ambos campos.','danger'); return; }
+
   const btn = document.getElementById('btnLogin');
   btn.disabled = true; btn.textContent = 'Verificando…';
   showAlert('loginMsg','Conectando…','warning');
-  api({ action:'validarLogin', correo:email, password:pass })
-    .then(res => {
-      btn.disabled = false; btn.textContent = 'Ingresar al sistema';
-      if (res.success) {
-        document.getElementById('loginView').classList.add('hidden');
-        document.getElementById('mainView').classList.remove('hidden');
-        document.getElementById('loginMsg').className = 'alert';
-        updateDate();
-        iniciarScanner();
-      } else { showAlert('loginMsg', res.message || 'Error', 'danger'); }
-    })
-    .catch(() => {
-      btn.disabled = false; btn.textContent = 'Ingresar al sistema';
-      showAlert('loginMsg','Error de red.','danger');
-    });
+
+  // Lanzar auth Y precarga en paralelo
+  Promise.all([
+    api({ action:'validarLogin', correo:email, password:pass }),
+    Cache.isValid() ? Promise.resolve(null) : precargarDatos()
+  ])
+  .then(([authRes]) => {
+    btn.disabled = false; btn.textContent = 'Ingresar al sistema';
+    if (authRes.success) {
+      document.getElementById('loginView').classList.add('hidden');
+      document.getElementById('mainView').classList.remove('hidden');
+      document.getElementById('loginMsg').className = 'alert';
+      if (Cache.logo) mostrarLogoFondo(Cache.logo);
+      updateDate();
+      iniciarScanner();
+    } else {
+      showAlert('loginMsg', authRes.message || 'Credenciales inválidas', 'danger');
+    }
+  })
+  .catch(() => {
+    btn.disabled = false; btn.textContent = 'Ingresar al sistema';
+    showAlert('loginMsg','Error de red. Verifica tu conexión.','danger');
+  });
 }
 
 function logout() {
@@ -468,7 +574,9 @@ function showView(v) {
   else { detenerScanner(); if (v === 'report') cargarReporte(); }
 }
 
-// ── SCANNER ──
+// ══════════════════════════════════════════
+// SCANNER — validación instantánea local
+// ══════════════════════════════════════════
 function iniciarScanner() {
   if (isScanning) return;
   if (scanner) { try { scanner.clear(); } catch(e){} scanner = null; }
@@ -497,19 +605,36 @@ function detenerScanner() {
 function onQR(text) {
   if (isProcessing) return;
   isProcessing = true;
-  showResult('🔍 Validando: ' + text + '…', 'info');
-  api({ action:'registrarEscaneo', id:text })
-    .then(res => {
-      showResult(res.message, res.success ? 'success' : 'danger');
-      setTimeout(() => { isProcessing=false; }, 3000);
-    })
-    .catch(() => {
-      showResult('Error de red.','danger');
-      setTimeout(() => { isProcessing=false; }, 3000);
-    });
+
+  // ── VALIDACIÓN INSTANTÁNEA desde cache local ──
+  const persona = Cache.find(text);
+
+  if (!persona) {
+    showResult('❌ ID "' + text + '" no encontrado.', 'danger');
+    setTimeout(() => { isProcessing=false; }, 2500);
+    return;
+  }
+
+  // Mostrar resultado inmediato — sin esperar a Sheets
+  showResult('⚡ Registrando…
+👤 ' + persona.nombre + '
+🏢 ' + persona.empresa, 'info');
+
+  // Enviar a Sheets en segundo plano (no bloquea la UI)
+  WriteQueue.push({ action:'registrarEscaneo', id:text });
+
+  // Después de 400ms (tiempo de animación), mostrar confirmación visual
+  setTimeout(() => {
+    showResult('✅ Acceso registrado
+👤 ' + persona.nombre + '
+🏢 ' + persona.empresa, 'success');
+    setTimeout(() => { isProcessing=false; }, 2500);
+  }, 400);
 }
 
-// ── GENERADOR PDF ──
+// ══════════════════════════════════════════
+// GENERADOR PDF — usa cache, cero llamadas extra
+// ══════════════════════════════════════════
 function toggleParams() {
   const m = document.getElementById('modoGen').value;
   document.getElementById('pRango').classList.toggle('hidden',      m !== 'rango');
@@ -524,33 +649,41 @@ function setProgress(pct, texto) {
 async function generarPDF() {
   const modo = document.getElementById('modoGen').value;
   const btn  = document.getElementById('btnGen');
-  const params = { action:'obtenerPersonalParaPDF', modo };
+  const params = { inicio: document.getElementById('rInicio')?.value,
+                   fin:    document.getElementById('rFin')?.value,
+                   ids:    document.getElementById('rIds')?.value };
 
-  if (modo === 'rango') {
-    params.inicio = document.getElementById('rInicio').value;
-    params.fin    = document.getElementById('rFin').value;
-    if (!params.inicio || !params.fin) { showAlert('genMsg','Ingresa el rango completo.','warning'); return; }
-  } else if (modo === 'individual') {
-    params.ids = document.getElementById('rIds').value.trim();
-    if (!params.ids) { showAlert('genMsg','Ingresa al menos un ID.','warning'); return; }
+  if (modo === 'rango' && (!params.inicio || !params.fin)) {
+    showAlert('genMsg','Ingresa el rango completo.','warning'); return;
+  }
+  if (modo === 'individual' && !params.ids?.trim()) {
+    showAlert('genMsg','Ingresa al menos un ID.','warning'); return;
   }
 
   btn.disabled = true;
   document.getElementById('progressWrap').className = 'progress-wrap show';
   document.getElementById('genMsg').className = 'alert';
-  setProgress(5, 'Obteniendo datos…');
+  setProgress(5, 'Filtrando personal…');
 
   try {
-    const res = await api(params);
-    if (!res.success) {
-      showAlert('genMsg','❌ ' + res.message,'danger');
+    // Usar cache local — sin llamada a servidor
+    let personal = Cache.filter(modo, params);
+
+    // Si no hay cache, cargar primero
+    if (personal.length === 0 && !Cache.isValid()) {
+      setProgress(10, 'Cargando datos…');
+      await precargarDatos();
+      personal = Cache.filter(modo, params);
+    }
+
+    if (personal.length === 0) {
+      showAlert('genMsg','❌ No se encontraron registros.','danger');
       btn.disabled = false;
       document.getElementById('progressWrap').className = 'progress-wrap';
       return;
     }
 
-    const personal = res.personal;
-    const logo     = res.logo || logoDataURL || '';
+    const logo = Cache.logo;
     setProgress(15, 'Generando QR…');
 
     // Generar QR con qrcodejs
@@ -564,16 +697,11 @@ async function generarPDF() {
       qrDataURLs[p.id] = await new Promise(resolve => {
         qrContainer.innerHTML = '';
         try {
-          new QRCode(qrContainer, {
-            text: String(p.id), width:200, height:200,
-            correctLevel: QRCode.CorrectLevel.H
-          });
+          new QRCode(qrContainer, { text:String(p.id), width:200, height:200, correctLevel:QRCode.CorrectLevel.H });
           setTimeout(() => {
             const canvas = qrContainer.querySelector('canvas');
             const img    = qrContainer.querySelector('img');
-            if (canvas) resolve(canvas.toDataURL('image/png'));
-            else if (img) resolve(img.src);
-            else resolve('');
+            resolve(canvas ? canvas.toDataURL('image/png') : (img ? img.src : ''));
           }, 60);
         } catch(e) { resolve(''); }
       });
@@ -582,79 +710,45 @@ async function generarPDF() {
     document.body.removeChild(qrContainer);
     setProgress(72, 'Construyendo PDF…');
 
-    // Generar PDF con jsPDF
     const { jsPDF } = window.jspdf;
     const doc   = new jsPDF({ orientation:'portrait', unit:'mm', format:'letter' });
     const pageW = 215.9, pageH = 279.4;
-    const margin = 8, cols = 3, rows = 3, gap = 4;
+    const margin=8, cols=3, rows=3, gap=4;
     const cardW = (pageW - margin*2 - (cols-1)*gap) / cols;
     const cardH = (pageH - margin*2 - (rows-1)*gap) / rows;
 
     for (let i = 0; i < personal.length; i++) {
-      const p   = personal[i];
-      const col = i % cols;
-      const row = Math.floor(i/cols) % rows;
+      const p = personal[i];
       if (i > 0 && i % (cols*rows) === 0) doc.addPage();
-      const x = margin + col*(cardW+gap);
-      const y = margin + row*(cardH+gap);
+      const col = i % cols, row = Math.floor(i/cols) % rows;
+      const x = margin + col*(cardW+gap), y = margin + row*(cardH+gap);
 
-      // Tarjeta
-      doc.setFillColor(255,255,255);
-      doc.setDrawColor(50,50,50);
-      doc.setLineWidth(0.4);
+      doc.setFillColor(255,255,255); doc.setDrawColor(50,50,50); doc.setLineWidth(0.4);
       doc.roundedRect(x, y, cardW, cardH, 3, 3, 'FD');
-
       let cy = y + 3;
 
-      // Logo
       if (logo) {
-        try {
-          const lw=22, lh=9, lx=x+(cardW-lw)/2;
-          doc.addImage(logo,'PNG',lx,cy,lw,lh,'','FAST');
-          cy += lh + 2;
-        } catch(e){ cy += 3; }
-      } else { cy += 2; }
+        try { const lw=22,lh=9,lx=x+(cardW-lw)/2; doc.addImage(logo,'PNG',lx,cy,lw,lh,'','FAST'); cy+=lh+2; }
+        catch(e){ cy+=3; }
+      } else { cy+=2; }
 
-      // Empresa
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(5.5);
-      doc.setTextColor(70,70,70);
+      doc.setFont('helvetica','bold'); doc.setFontSize(5.5); doc.setTextColor(70,70,70);
       const eLines = doc.splitTextToSize(p.empresa.toUpperCase(), cardW-4);
-      doc.text(eLines, x+cardW/2, cy, {align:'center'});
-      cy += eLines.length*3.2 + 2;
+      doc.text(eLines, x+cardW/2, cy, {align:'center'}); cy += eLines.length*3.2+2;
 
-      // QR
-      const qr = qrDataURLs[p.id];
-      const qrSz = 32, qx = x+(cardW-qrSz)/2;
-      if (qr) {
-        doc.addImage(qr,'PNG',qx,cy,qrSz,qrSz,'','FAST');
-      } else {
-        doc.setDrawColor(180,180,180);
-        doc.rect(qx,cy,qrSz,qrSz);
-        doc.setFontSize(5);doc.setTextColor(150,150,150);
-        doc.text('ID:'+p.id, x+cardW/2, cy+qrSz/2, {align:'center'});
-      }
-      cy += qrSz + 2;
+      const qr=qrDataURLs[p.id], qrSz=32, qx=x+(cardW-qrSz)/2;
+      if (qr) { doc.addImage(qr,'PNG',qx,cy,qrSz,qrSz,'','FAST'); }
+      else { doc.setDrawColor(180,180,180); doc.rect(qx,cy,qrSz,qrSz); }
+      cy += qrSz+2;
 
-      // ID
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(9);
-      doc.setTextColor(26,86,219);
-      doc.text('ID: '+p.id, x+cardW/2, cy, {align:'center'});
-      cy += 5;
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(26,86,219);
+      doc.text('ID: '+p.id, x+cardW/2, cy, {align:'center'}); cy+=5;
 
-      // Nombre
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(7);
-      doc.setTextColor(20,20,20);
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(20,20,20);
       const nLines = doc.splitTextToSize(p.nombre, cardW-4);
-      doc.text(nLines, x+cardW/2, cy, {align:'center'});
-      cy += nLines.length*3.8+1;
+      doc.text(nLines, x+cardW/2, cy, {align:'center'}); cy+=nLines.length*3.8+1;
 
-      // Puesto
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(6);
-      doc.setTextColor(100,100,100);
+      doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor(100,100,100);
       const pLines = doc.splitTextToSize(p.puesto, cardW-4);
       doc.text(pLines, x+cardW/2, cy, {align:'center'});
     }
@@ -673,43 +767,40 @@ async function generarPDF() {
   }
 }
 
-// ── REPORTE ──
+// ══════════════════════════════════════════
+// REPORTE
+// ══════════════════════════════════════════
 function cargarReporte() {
   const btn = document.getElementById('btnReporte');
-  btn.disabled = true; btn.textContent = '⏳ Cargando…';
+  btn.disabled=true; btn.textContent='⏳ Cargando…';
   api({ action:'obtenerEstadisticasHoy' })
     .then(res => {
-      btn.disabled = false; btn.textContent = '🔄 Actualizar reporte';
+      btn.disabled=false; btn.textContent='🔄 Actualizar reporte';
       if (res.success) {
         document.getElementById('statMañana').textContent = res.manana;
         document.getElementById('statTarde').textContent  = res.tarde;
         document.getElementById('statTotal').textContent  = res.total;
-      } else {
-        showAlert('reportMsg', res.message, 'danger');
-      }
+      } else { showAlert('reportMsg', res.message, 'danger'); }
     })
-    .catch(() => {
-      btn.disabled = false; btn.textContent = '🔄 Actualizar reporte';
-      showAlert('reportMsg','Error de red','danger');
-    });
+    .catch(() => { btn.disabled=false; btn.textContent='🔄 Actualizar reporte'; showAlert('reportMsg','Error de red','danger'); });
 }
 
 function enviarReporteManual() {
   const btn = document.getElementById('btnEnviarReporte');
-  btn.disabled = true; btn.textContent = '⏳ Enviando…';
+  btn.disabled=true; btn.textContent='⏳ Enviando…';
   api({ action:'enviarReporteManual' })
     .then(res => {
-      btn.disabled = false; btn.textContent = '📧 Enviar reporte ahora por correo';
-      showAlert('reportMsg', res.message, res.success ? 'success' : 'danger');
+      btn.disabled=false; btn.textContent='📧 Enviar reporte ahora por correo';
+      showAlert('reportMsg', res.message, res.success?'success':'danger');
     })
-    .catch(() => {
-      btn.disabled = false; btn.textContent = '📧 Enviar reporte ahora por correo';
-      showAlert('reportMsg','Error al enviar','danger');
-    });
+    .catch(() => { btn.disabled=false; btn.textContent='📧 Enviar reporte ahora'; showAlert('reportMsg','Error al enviar','danger'); });
 }
 
-// ── INIT ──
-cargarLogo();
+// ══════════════════════════════════════════
+// INIT — intentar cargar desde sessionStorage
+// ══════════════════════════════════════════
+Cache.loadFromStorage();
+if (Cache.logo) mostrarLogoFondo(Cache.logo);
 </script>
 </body>
 </html>
