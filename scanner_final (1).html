@@ -4,155 +4,250 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Control de Acceso QR</title>
-<!-- QR Code generator -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<!-- jsPDF para generar PDF en navegador -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<!-- Escáner QR -->
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #080c14;
-  --surface: #0f1623;
-  --card: #141d2e;
-  --border: #1e2d45;
-  --accent: #00d4ff;
-  --accent2: #0066ff;
-  --success: #00e676;
-  --danger: #ff1744;
-  --warning: #ffab00;
-  --text: #e8edf5;
-  --muted: #4a6080;
-  --font-display: 'Rajdhani', sans-serif;
-  --font-body: 'Inter', sans-serif;
+  --bg: #f5f7fa;
+  --white: #ffffff;
+  --border: #e2e8f0;
+  --accent: #1a56db;
+  --accent-light: #e8f0fe;
+  --success: #059669;
+  --success-bg: #ecfdf5;
+  --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --warning: #d97706;
+  --warning-bg: #fffbeb;
+  --info: #0284c7;
+  --info-bg: #f0f9ff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --font: 'Outfit', sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow-x:hidden}
-body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-height:100dvh}
+html,body{height:100%;font-family:var(--font)}
+body{background:var(--bg);color:var(--text);min-height:100dvh}
 
-/* Grid lines bg */
-body::before{
-  content:'';position:fixed;inset:0;
-  background-image:linear-gradient(rgba(0,212,255,.04) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,212,255,.04) 1px,transparent 1px);
-  background-size:48px 48px;pointer-events:none;z-index:0;
+.app{max-width:480px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column}
+
+/* ══ LOGIN ══ */
+#loginView{flex:1;display:flex;flex-direction:column;min-height:100dvh;position:relative;overflow:hidden}
+
+/* Logo background — ocupa la mitad inferior */
+.login-bg{
+  position:absolute;bottom:0;left:0;right:0;
+  height:55%;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+  z-index:0;
+}
+.login-bg img{
+  width:100%;height:100%;
+  object-fit:contain;
+  opacity:0.08;
+  filter:grayscale(30%);
+}
+.login-bg-fallback{
+  width:100%;height:100%;
+  background:linear-gradient(135deg,#e8f0fe 0%,#dbeafe 100%);
+  opacity:.5;
 }
 
-.app{max-width:500px;margin:0 auto;padding:16px 14px 60px;position:relative;z-index:1}
+/* Contenido del login por encima */
+.login-content{
+  position:relative;z-index:1;
+  flex:1;display:flex;flex-direction:column;
+  padding:0 20px 32px;
+}
 
-/* ── HEADER ── */
-.header{text-align:center;padding:20px 0 18px;margin-bottom:20px;border-bottom:1px solid var(--border)}
-.pulse-dot{display:inline-block;width:7px;height:7px;background:var(--accent);border-radius:50%;
-  margin-right:6px;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,212,255,.4)}70%{box-shadow:0 0 0 8px transparent}}
-.header-tag{font-family:var(--font-display);font-size:11px;letter-spacing:3px;color:var(--accent);
-  text-transform:uppercase;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
-.header h1{font-family:var(--font-display);font-size:1.8em;font-weight:700;color:#fff;letter-spacing:1px}
-.header h1 span{color:var(--accent)}
+/* Header del login */
+.login-header{
+  padding:44px 0 28px;text-align:center;
+}
+.login-logo-small{
+  width:56px;height:56px;border-radius:14px;
+  background:var(--accent);display:flex;align-items:center;
+  justify-content:center;margin:0 auto 14px;
+  box-shadow:0 4px 20px rgba(26,86,219,.3);
+}
+.login-logo-small svg{width:28px;height:28px;fill:white}
+.login-header h1{font-size:1.6em;font-weight:700;color:var(--text);margin-bottom:4px}
+.login-header p{font-size:13px;color:var(--muted);font-weight:400}
 
-/* ── CARDS ── */
-.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+/* Tarjeta del formulario */
+.login-card{
+  background:var(--white);border-radius:20px;padding:24px;
+  box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid var(--border);
+}
 
-/* ── FORM ── */
 .field{margin-bottom:14px}
-.field label{display:block;font-size:10px;font-weight:600;letter-spacing:2px;
-  text-transform:uppercase;color:var(--muted);margin-bottom:7px;font-family:var(--font-display)}
-.field input{width:100%;padding:12px 14px;background:var(--surface);border:1px solid var(--border);
-  border-radius:8px;color:var(--text);font-size:15px;font-family:var(--font-body);
-  transition:border-color .2s,box-shadow .2s}
-.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px}
+.field input{
+  width:100%;padding:13px 16px;background:#f8fafc;
+  border:1.5px solid var(--border);border-radius:10px;
+  color:var(--text);font-size:15px;font-family:var(--font);
+  transition:border-color .2s,box-shadow .2s,background .2s;
+}
+.field input:focus{
+  outline:none;border-color:var(--accent);background:var(--white);
+  box-shadow:0 0 0 4px rgba(26,86,219,.1);
+}
 .pass-wrap{position:relative}
-.pass-wrap input{padding-right:46px}
-.eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);
-  background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:0;line-height:1}
+.pass-wrap input{padding-right:48px}
+.eye{position:absolute;right:14px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;font-size:18px;color:var(--muted);
+  padding:0;line-height:1;transition:color .2s}
+.eye:hover{color:var(--accent)}
 
-/* ── BUTTONS ── */
-.btn{width:100%;padding:13px;border:none;border-radius:8px;font-weight:700;
-  font-size:15px;cursor:pointer;transition:all .2s;letter-spacing:.5px;margin-top:6px}
-.btn-primary{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff}
-.btn-primary:hover{opacity:.88;transform:translateY(-1px)}
+.btn{width:100%;padding:14px;border:none;border-radius:10px;font-weight:600;
+  font-size:15px;cursor:pointer;transition:all .2s;font-family:var(--font);letter-spacing:.3px}
+.btn-primary{background:var(--accent);color:white;margin-top:4px;
+  box-shadow:0 2px 12px rgba(26,86,219,.3)}
+.btn-primary:hover{background:#1648c0;transform:translateY(-1px);box-shadow:0 4px 16px rgba(26,86,219,.4)}
 .btn-primary:active{transform:scale(.98)}
-.btn-primary:disabled{opacity:.35;cursor:not-allowed;transform:none}
-.btn-danger{background:rgba(255,23,68,.15);border:1px solid rgba(255,23,68,.4);color:var(--danger)}
-.btn-danger:hover{background:rgba(255,23,68,.25)}
+.btn-primary:disabled{background:#94a3b8;cursor:not-allowed;transform:none;box-shadow:none}
 
-/* ── NAV ── */
-.nav{display:flex;gap:8px;margin-bottom:18px}
-.nav-btn{flex:1;padding:11px 6px;background:var(--surface);border:1px solid var(--border);
-  border-radius:8px;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;
-  transition:all .2s;text-align:center;font-family:var(--font-body)}
-.nav-btn:hover{border-color:var(--accent);color:var(--accent)}
-.nav-btn.active{background:rgba(0,212,255,.08);border-color:var(--accent);color:var(--accent)}
-.nav-btn.logout{background:rgba(255,23,68,.06);border-color:rgba(255,23,68,.25);color:var(--danger)}
+/* ══ MAIN ══ */
+#mainView{flex:1;display:flex;flex-direction:column;padding:0}
 
-/* ── SCANNER ── */
-.scanner-label{font-family:var(--font-display);font-size:11px;letter-spacing:2px;
-  text-transform:uppercase;color:var(--muted);margin-bottom:12px}
-#reader{width:100%;border-radius:10px;overflow:hidden;border:2px solid var(--border);
-  background:#000;min-height:260px;position:relative}
+.topbar{
+  background:var(--white);border-bottom:1px solid var(--border);
+  padding:14px 16px;display:flex;align-items:center;gap:10px;
+  position:sticky;top:0;z-index:10;
+}
+.topbar-logo{
+  width:36px;height:36px;border-radius:10px;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.topbar-logo svg{width:18px;height:18px;fill:white}
+.topbar-title{flex:1;font-weight:700;font-size:15px;color:var(--text)}
+.topbar-sub{font-size:11px;color:var(--muted);font-weight:400}
+.btn-logout{padding:8px 14px;background:var(--danger-bg);color:var(--danger);
+  border:1px solid rgba(220,38,38,.2);border-radius:8px;font-size:12px;font-weight:600;
+  cursor:pointer;font-family:var(--font);transition:all .2s;white-space:nowrap}
+.btn-logout:hover{background:#fee2e2}
+
+.nav-tabs{
+  display:flex;background:var(--white);border-bottom:1px solid var(--border);
+  padding:0 16px;
+}
+.nav-tab{
+  flex:1;padding:13px 8px;text-align:center;font-size:13px;font-weight:500;
+  color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;
+  transition:all .2s;background:none;border-left:none;border-right:none;border-top:none;
+  font-family:var(--font);
+}
+.nav-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.nav-tab:hover:not(.active){color:var(--text)}
+
+.main-content{flex:1;padding:16px;overflow-y:auto}
+
+/* ══ SCANNER ══ */
+.section-label{font-size:11px;font-weight:600;text-transform:uppercase;
+  letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+.scanner-card{background:var(--white);border-radius:16px;padding:16px;
+  box-shadow:0 1px 8px rgba(0,0,0,.06);border:1px solid var(--border);margin-bottom:12px}
+#reader{width:100%;border-radius:10px;overflow:hidden;background:#000;min-height:260px;
+  border:2px solid var(--border)}
 #reader__scan_region{background:transparent!important}
-#reader__dashboard{padding:8px!important;background:var(--surface)!important}
+#reader__dashboard{padding:8px!important;background:#f8fafc!important;border-top:1px solid var(--border)!important}
 #reader__status_span{display:none!important}
-#reader__camera_selection{background:var(--surface)!important;color:var(--text)!important;
-  border:1px solid var(--border)!important;border-radius:6px!important;
-  padding:6px!important;font-size:12px!important;width:100%!important}
+#reader__camera_selection{background:#f8fafc!important;color:var(--text)!important;
+  border:1.5px solid var(--border)!important;border-radius:8px!important;
+  padding:8px!important;font-size:12px!important;width:100%!important;font-family:var(--font)!important}
 #html5-qrcode-button-camera-start,#html5-qrcode-button-camera-stop,
 #html5-qrcode-button-camera-permission{
-  background:var(--accent)!important;color:#000!important;border:none!important;
-  border-radius:6px!important;padding:8px 14px!important;font-weight:700!important;
-  cursor:pointer!important;font-size:12px!important;margin:3px!important}
-#html5-qrcode-button-camera-stop{background:var(--danger)!important;color:#fff!important}
+  background:var(--accent)!important;color:white!important;border:none!important;
+  border-radius:8px!important;padding:9px 16px!important;font-weight:600!important;
+  cursor:pointer!important;font-size:13px!important;margin:3px!important;font-family:var(--font)!important}
+#html5-qrcode-button-camera-stop{background:var(--danger)!important}
 
-/* ── RESULT BOX ── */
-.result{margin-top:14px;padding:14px 16px;border-radius:10px;font-size:14px;
-  font-weight:600;line-height:1.5;white-space:pre-line;display:none;animation:fadeUp .3s ease}
-.result.show{display:block}
-.result.success{background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.35);color:var(--success)}
-.result.danger {background:rgba(255,23,68,.1); border:1px solid rgba(255,23,68,.35); color:var(--danger)}
-.result.info   {background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.3); color:var(--accent)}
-.result.warning{background:rgba(255,171,0,.1); border:1px solid rgba(255,171,0,.35);color:var(--warning)}
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+/* ══ RESULT ══ */
+.result{margin-top:12px;padding:14px 16px;border-radius:12px;font-size:14px;
+  font-weight:500;line-height:1.6;white-space:pre-line;display:none}
+.result.show{display:block;animation:slideIn .25s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.result.success{background:var(--success-bg);border:1px solid rgba(5,150,105,.2);color:#065f46}
+.result.danger {background:var(--danger-bg); border:1px solid rgba(220,38,38,.2); color:#991b1b}
+.result.info   {background:var(--info-bg);   border:1px solid rgba(2,132,199,.2);  color:#0c4a6e}
+.result.warning{background:var(--warning-bg);border:1px solid rgba(217,119,6,.2); color:#92400e}
 
-/* ── GENERATOR ── */
-.gen-select{width:100%;padding:12px 14px;background:var(--surface);border:1px solid var(--border);
-  border-radius:8px;color:var(--text);font-size:14px;margin-top:6px;cursor:pointer}
-.gen-select:focus{outline:none;border-color:var(--accent)}
-.gen-input{width:100%;padding:12px 14px;background:var(--surface);border:1px solid var(--border);
-  border-radius:8px;color:var(--text);font-size:14px;margin-top:6px}
-.gen-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
+/* ══ GENERATOR ══ */
+.gen-card{background:var(--white);border-radius:16px;padding:18px;
+  box-shadow:0 1px 8px rgba(0,0,0,.06);border:1px solid var(--border);margin-bottom:12px}
+.gen-card h3{font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px}
+select.gen-select,input.gen-input{
+  width:100%;padding:12px 14px;background:#f8fafc;border:1.5px solid var(--border);
+  border-radius:10px;color:var(--text);font-size:14px;font-family:var(--font);
+  transition:border-color .2s;margin-top:6px;
+}
+select.gen-select:focus,input.gen-input:focus{
+  outline:none;border-color:var(--accent);background:var(--white);
+}
+.field-label{font-size:12px;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.8px;margin-top:12px;display:block}
 
-/* ── ALERT INLINE ── */
-.alert{padding:12px 14px;border-radius:8px;font-size:13px;font-weight:500;
-  margin-top:12px;display:none;animation:fadeUp .3s ease}
-.alert.show{display:block}
-.alert.success{background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.3);color:var(--success)}
-.alert.danger {background:rgba(255,23,68,.1); border:1px solid rgba(255,23,68,.3); color:var(--danger)}
-.alert.warning{background:rgba(255,171,0,.1); border:1px solid rgba(255,171,0,.3);color:var(--warning)}
-.alert.info   {background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.3); color:var(--accent)}
-
-/* ── PROGRESS BAR ── */
+/* ══ PROGRESS ══ */
 .progress-wrap{margin-top:12px;display:none}
 .progress-wrap.show{display:block}
-.progress-bar{height:4px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:6px}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));
-  border-radius:4px;transition:width .3s ease;width:0%}
-.progress-text{font-size:11px;color:var(--muted);text-align:center}
+.progress-bar{height:6px;background:var(--border);border-radius:6px;overflow:hidden;margin-bottom:6px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#60a5fa);
+  border-radius:6px;transition:width .3s ease;width:0%}
+.progress-text{font-size:12px;color:var(--muted);text-align:center}
+
+/* ══ ALERT ══ */
+.alert{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:500;
+  margin-top:10px;display:none}
+.alert.show{display:block;animation:slideIn .25s ease}
+.alert.success{background:var(--success-bg);border:1px solid rgba(5,150,105,.2);color:#065f46}
+.alert.danger {background:var(--danger-bg); border:1px solid rgba(220,38,38,.2); color:#991b1b}
+.alert.warning{background:var(--warning-bg);border:1px solid rgba(217,119,6,.2); color:#92400e}
+.alert.info   {background:var(--info-bg);   border:1px solid rgba(2,132,199,.2);  color:#0c4a6e}
+
+/* ══ REPORTE ══ */
+.report-card{background:var(--white);border-radius:16px;padding:18px;
+  box-shadow:0 1px 8px rgba(0,0,0,.06);border:1px solid var(--border);margin-bottom:12px}
+.report-card h3{font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px}
+.report-card p{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5}
+.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.stat-box{background:var(--bg);border-radius:10px;padding:14px;text-align:center;border:1px solid var(--border)}
+.stat-num{font-size:28px;font-weight:700;color:var(--accent);line-height:1}
+.stat-label{font-size:11px;color:var(--muted);margin-top:4px;font-weight:500}
+.stat-box.morning .stat-num{color:#d97706}
+.stat-box.afternoon .stat-num{color:#7c3aed}
+.stat-box.total .stat-num{color:var(--accent)}
+.btn-report{width:100%;padding:12px;background:var(--accent-light);color:var(--accent);
+  border:1.5px solid rgba(26,86,219,.2);border-radius:10px;font-weight:600;font-size:14px;
+  cursor:pointer;font-family:var(--font);transition:all .2s;margin-top:6px}
+.btn-report:hover{background:#dbeafe}
+.btn-report:disabled{opacity:.5;cursor:not-allowed}
+.schedule-info{font-size:11px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.6}
 
 .hidden{display:none!important}
+.divider{height:1px;background:var(--border);margin:14px 0}
 </style>
 </head>
 <body>
 <div class="app">
 
-  <div class="header">
-    <div class="header-tag"><span class="pulse-dot"></span>Sistema Activo</div>
-    <h1>Control de <span>Acceso</span></h1>
+<!-- ══ LOGIN ══ -->
+<div id="loginView">
+  <div class="login-bg" id="loginBg">
+    <div class="login-bg-fallback" id="bgFallback"></div>
   </div>
-
-  <!-- LOGIN -->
-  <div id="loginView">
-    <div class="card">
+  <div class="login-content">
+    <div class="login-header">
+      <div class="login-logo-small">
+        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+      </div>
+      <h1>Control de Acceso</h1>
+      <p>Sistema de vigilancia y registro</p>
+    </div>
+    <div class="login-card">
       <div class="field">
         <label>Correo electrónico</label>
         <input type="email" id="email" placeholder="usuario@empresa.com" autocomplete="email">
@@ -169,19 +264,36 @@ body::before{
       <div class="alert" id="loginMsg"></div>
     </div>
   </div>
+</div>
 
-  <!-- PANEL PRINCIPAL -->
-  <div id="mainView" class="hidden">
-    <div class="nav">
-      <button class="nav-btn active" id="navScan" onclick="showView('scan')">📷 Escanear</button>
-      <button class="nav-btn"        id="navGen"  onclick="showView('gen')">🪪 Gafetes</button>
-      <button class="nav-btn logout"              onclick="logout()">⏻ Salir</button>
+<!-- ══ PANEL PRINCIPAL ══ -->
+<div id="mainView" class="hidden">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-logo">
+      <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
     </div>
+    <div style="flex:1">
+      <div class="topbar-title">Control de Acceso</div>
+      <div class="topbar-sub" id="topbarDate"></div>
+    </div>
+    <button class="btn-logout" onclick="logout()">⏻ Salir</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" id="tabScan"   onclick="showView('scan')">📷 Escanear</button>
+    <button class="nav-tab"        id="tabGen"    onclick="showView('gen')">🪪 Gafetes</button>
+    <button class="nav-tab"        id="tabReport" onclick="showView('report')">📊 Reporte</button>
+  </div>
+
+  <div class="main-content">
 
     <!-- ESCÁNER -->
     <div id="scanView">
-      <div class="card">
-        <div class="scanner-label">▸ Escáner en vivo</div>
+      <div class="scanner-card">
+        <div class="section-label">Escáner en vivo</div>
         <div id="reader"></div>
         <div class="result" id="scanResult"></div>
       </div>
@@ -189,33 +301,27 @@ body::before{
 
     <!-- GENERADOR PDF -->
     <div id="genView" class="hidden">
-      <div class="card">
-        <div class="scanner-label">▸ Generador de gafetes PDF</div>
-        <div class="field">
-          <label>Modo</label>
-          <select class="gen-select" id="modoGen" onchange="toggleParams()">
-            <option value="todos">Todo el listado</option>
-            <option value="rango">Por rango de IDs</option>
-            <option value="individual">IDs específicos</option>
-          </select>
-        </div>
+      <div class="gen-card">
+        <h3>🪪 Generador de gafetes PDF</h3>
+        <span class="field-label">Modo</span>
+        <select class="gen-select" id="modoGen" onchange="toggleParams()">
+          <option value="todos">Todo el listado</option>
+          <option value="rango">Por rango de IDs</option>
+          <option value="individual">IDs específicos</option>
+        </select>
         <div id="pRango" class="hidden">
-          <div class="field">
-            <label>ID Inicio</label>
-            <input type="number" class="gen-input" id="rInicio" placeholder="1">
-          </div>
-          <div class="field">
-            <label>ID Fin</label>
-            <input type="number" class="gen-input" id="rFin" placeholder="50">
-          </div>
+          <span class="field-label">ID Inicio</span>
+          <input type="number" class="gen-input" id="rInicio" placeholder="1">
+          <span class="field-label">ID Fin</span>
+          <input type="number" class="gen-input" id="rFin" placeholder="50">
         </div>
         <div id="pIndividual" class="hidden">
-          <div class="field">
-            <label>IDs separados por coma</label>
-            <input type="text" class="gen-input" id="rIds" placeholder="1, 5, 87">
-          </div>
+          <span class="field-label">IDs separados por coma</span>
+          <input type="text" class="gen-input" id="rIds" placeholder="1, 5, 87">
         </div>
-        <button class="btn btn-primary" id="btnGen" onclick="generarPDF()">⬇️ Generar y descargar PDF</button>
+        <button class="btn btn-primary" id="btnGen" onclick="generarPDF()" style="margin-top:16px">
+          ⬇️ Generar y descargar PDF
+        </button>
         <div class="progress-wrap" id="progressWrap">
           <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
           <div class="progress-text" id="progressText">Preparando...</div>
@@ -223,41 +329,95 @@ body::before{
         <div class="alert" id="genMsg"></div>
       </div>
     </div>
-  </div>
-</div>
+
+    <!-- REPORTE -->
+    <div id="reportView" class="hidden">
+      <div class="report-card">
+        <h3>📊 Reporte del día</h3>
+        <p>Resumen de asistencia de hoy. Los reportes automáticos se envían por correo a las 8:00 am, 8:00 pm y 9:00 pm.</p>
+        <div class="report-grid">
+          <div class="stat-box morning">
+            <div class="stat-num" id="statMañana">—</div>
+            <div class="stat-label">Turno Mañana<br>(antes 12pm)</div>
+          </div>
+          <div class="stat-box afternoon">
+            <div class="stat-num" id="statTarde">—</div>
+            <div class="stat-label">Turno Tarde<br>(12pm en adelante)</div>
+          </div>
+          <div class="stat-box total" style="grid-column:span 2">
+            <div class="stat-num" id="statTotal">—</div>
+            <div class="stat-label">Total registros hoy</div>
+          </div>
+        </div>
+        <button class="btn-report" id="btnReporte" onclick="cargarReporte()">🔄 Actualizar reporte</button>
+        <div class="divider"></div>
+        <button class="btn-report" id="btnEnviarReporte" onclick="enviarReporteManual()">
+          📧 Enviar reporte ahora por correo
+        </button>
+        <div class="schedule-info">
+          Envíos automáticos programados:<br>
+          🌅 8:00 am · 🌆 8:00 pm · 🌙 9:00 pm
+        </div>
+        <div class="alert" id="reportMsg"></div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /mainView -->
+</div><!-- /app -->
 
 <script>
-// ══════════════════════════════════════════════════════
-// ⚙️  CONFIGURA AQUÍ TU URL DE APPS SCRIPT
-// ══════════════════════════════════════════════════════
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyME7h87vWO2ZsvCE932oGN36BGIjKgpLCkbNPy-PrE7TJkLkh0fLyBiIzHQPu1YHka/exec';
 
-// ── ESTADO ──
+// ── Estado ──
 let scanner = null, isScanning = false, isProcessing = false;
+let logoDataURL = '';
 
-// ── BACKEND ──
+// ── API ──
 function api(payload) {
   return fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-    headers: { 'Content-Type': 'text/plain' }
+    method:'POST', body:JSON.stringify(payload),
+    headers:{'Content-Type':'text/plain'}
   }).then(r => r.json());
 }
 
-// ── UI ──
+// ── Fecha en topbar ──
+function updateDate() {
+  const now = new Date();
+  document.getElementById('topbarDate').textContent =
+    now.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+}
+
+// ── Cargar logo como fondo ──
+function cargarLogo() {
+  api({ action:'obtenerLogo' }).then(res => {
+    if (res.logo) {
+      logoDataURL = res.logo;
+      const bg = document.getElementById('loginBg');
+      const fallback = document.getElementById('bgFallback');
+      const img = document.createElement('img');
+      img.src = res.logo;
+      img.onerror = () => {};
+      fallback.style.display = 'none';
+      bg.appendChild(img);
+    }
+  }).catch(()=>{});
+}
+
+// ── UI helpers ──
 function showAlert(id, msg, type) {
   const el = document.getElementById(id);
   el.className = 'alert show ' + type;
   el.textContent = msg;
   if (type === 'success' || type === 'danger')
-    setTimeout(() => { el.className = 'alert'; }, 5000);
+    setTimeout(() => { el.className='alert'; }, 5000);
 }
 function showResult(msg, type) {
   const el = document.getElementById('scanResult');
   el.className = 'result show ' + type;
   el.textContent = msg;
   if (type === 'success' || type === 'danger')
-    setTimeout(() => { el.className = 'result'; }, 4000);
+    setTimeout(() => { el.className='result'; }, 4500);
 }
 function togglePass() {
   const i = document.getElementById('password');
@@ -279,12 +439,13 @@ function login() {
         document.getElementById('loginView').classList.add('hidden');
         document.getElementById('mainView').classList.remove('hidden');
         document.getElementById('loginMsg').className = 'alert';
+        updateDate();
         iniciarScanner();
       } else { showAlert('loginMsg', res.message || 'Error', 'danger'); }
     })
     .catch(() => {
       btn.disabled = false; btn.textContent = 'Ingresar al sistema';
-      showAlert('loginMsg','Error de red. Verifica la URL del backend.','danger');
+      showAlert('loginMsg','Error de red.','danger');
     });
 }
 
@@ -296,13 +457,15 @@ function logout() {
   document.getElementById('password').value = '';
 }
 
-// ── VISTAS ──
+// ── TABS ──
 function showView(v) {
-  document.getElementById('scanView').classList.toggle('hidden', v !== 'scan');
-  document.getElementById('genView').classList.toggle('hidden',  v !== 'gen');
-  document.getElementById('navScan').classList.toggle('active',  v === 'scan');
-  document.getElementById('navGen').classList.toggle('active',   v === 'gen');
-  if (v === 'scan') iniciarScanner(); else detenerScanner();
+  ['scan','gen','report'].forEach(id => {
+    document.getElementById(id+'View').classList.toggle('hidden', id !== v);
+    document.getElementById('tab'+id.charAt(0).toUpperCase()+id.slice(1))
+      .classList.toggle('active', id === v);
+  });
+  if (v === 'scan') iniciarScanner();
+  else { detenerScanner(); if (v === 'report') cargarReporte(); }
 }
 
 // ── SCANNER ──
@@ -310,7 +473,7 @@ function iniciarScanner() {
   if (isScanning) return;
   if (scanner) { try { scanner.clear(); } catch(e){} scanner = null; }
   scanner = new Html5Qrcode('reader');
-  const cfg = { fps:10, qrbox:{width:230,height:230}, aspectRatio:1.0 };
+  const cfg = { fps:10, qrbox:{width:220,height:220}, aspectRatio:1.0 };
   const try_ = c => scanner.start(c, cfg, onQR, ()=>{});
   try_({ facingMode:'environment' })
     .then(() => { isScanning=true; })
@@ -321,7 +484,7 @@ function iniciarScanner() {
           if (!cams||!cams.length) { showResult('No se encontró cámara.','danger'); return; }
           return try_(cams[cams.length-1].id).then(()=>{ isScanning=true; });
         })
-        .catch(() => showResult('No se pudo acceder a la cámara. Verifica permisos.','danger'))
+        .catch(() => showResult('No se pudo acceder a la cámara.','danger'))
       )
     );
 }
@@ -334,22 +497,22 @@ function detenerScanner() {
 function onQR(text) {
   if (isProcessing) return;
   isProcessing = true;
-  showResult('🔍 Validando ID: ' + text + '…', 'info');
+  showResult('🔍 Validando: ' + text + '…', 'info');
   api({ action:'registrarEscaneo', id:text })
     .then(res => {
       showResult(res.message, res.success ? 'success' : 'danger');
-      setTimeout(() => { isProcessing = false; }, 3000);
+      setTimeout(() => { isProcessing=false; }, 3000);
     })
     .catch(() => {
-      showResult('Error de red al validar.', 'danger');
-      setTimeout(() => { isProcessing = false; }, 3000);
+      showResult('Error de red.','danger');
+      setTimeout(() => { isProcessing=false; }, 3000);
     });
 }
 
-// ── GENERADOR PDF — 100% en navegador ──
+// ── GENERADOR PDF ──
 function toggleParams() {
   const m = document.getElementById('modoGen').value;
-  document.getElementById('pRango').classList.toggle('hidden',     m !== 'rango');
+  document.getElementById('pRango').classList.toggle('hidden',      m !== 'rango');
   document.getElementById('pIndividual').classList.toggle('hidden', m !== 'individual');
 }
 
@@ -375,23 +538,22 @@ async function generarPDF() {
   btn.disabled = true;
   document.getElementById('progressWrap').className = 'progress-wrap show';
   document.getElementById('genMsg').className = 'alert';
-  setProgress(5, 'Obteniendo datos del servidor…');
+  setProgress(5, 'Obteniendo datos…');
 
   try {
-    // 1. Obtener lista de personal desde Apps Script
     const res = await api(params);
     if (!res.success) {
-      showAlert('genMsg', '❌ ' + res.message, 'danger');
+      showAlert('genMsg','❌ ' + res.message,'danger');
       btn.disabled = false;
       document.getElementById('progressWrap').className = 'progress-wrap';
       return;
     }
 
     const personal = res.personal;
-    const logo     = res.logo || '';
-    setProgress(15, 'Generando códigos QR…');
+    const logo     = res.logo || logoDataURL || '';
+    setProgress(15, 'Generando QR…');
 
-    // 2. Generar QR en canvas para cada persona usando qrcodejs
+    // Generar QR con qrcodejs
     const qrDataURLs = {};
     const qrContainer = document.createElement('div');
     qrContainer.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:200px;height:200px';
@@ -399,59 +561,46 @@ async function generarPDF() {
 
     for (let i = 0; i < personal.length; i++) {
       const p = personal[i];
-      qrDataURLs[p.id] = await new Promise((resolve) => {
+      qrDataURLs[p.id] = await new Promise(resolve => {
         qrContainer.innerHTML = '';
         try {
-          const qr = new QRCode(qrContainer, {
-            text: String(p.id),
-            width: 200, height: 200,
+          new QRCode(qrContainer, {
+            text: String(p.id), width:200, height:200,
             correctLevel: QRCode.CorrectLevel.H
           });
-          // qrcodejs es síncrono, el canvas está listo de inmediato
           setTimeout(() => {
             const canvas = qrContainer.querySelector('canvas');
             const img    = qrContainer.querySelector('img');
             if (canvas) resolve(canvas.toDataURL('image/png'));
             else if (img) resolve(img.src);
             else resolve('');
-          }, 50);
+          }, 60);
         } catch(e) { resolve(''); }
       });
-      const pct = 15 + Math.round((i + 1) / personal.length * 55);
-      setProgress(pct, 'QR ' + (i+1) + ' de ' + personal.length + '…');
+      setProgress(15 + Math.round((i+1)/personal.length*55), 'QR '+(i+1)+' de '+personal.length+'…');
     }
     document.body.removeChild(qrContainer);
-
     setProgress(72, 'Construyendo PDF…');
 
-    // 3. Generar PDF con jsPDF
+    // Generar PDF con jsPDF
     const { jsPDF } = window.jspdf;
-    const doc  = new jsPDF({ orientation:'portrait', unit:'mm', format:'letter' });
+    const doc   = new jsPDF({ orientation:'portrait', unit:'mm', format:'letter' });
+    const pageW = 215.9, pageH = 279.4;
+    const margin = 8, cols = 3, rows = 3, gap = 4;
+    const cardW = (pageW - margin*2 - (cols-1)*gap) / cols;
+    const cardH = (pageH - margin*2 - (rows-1)*gap) / rows;
 
-    const pageW  = 215.9, pageH = 279.4;
-    const margin = 8;
-    const cols   = 3, rows = 3;
-    const cardW  = (pageW - margin*2 - (cols-1)*4) / cols;  // ~62mm
-    const cardH  = (pageH - margin*2 - (rows-1)*4) / rows;  // ~84mm
-
-    let page = 0;
     for (let i = 0; i < personal.length; i++) {
       const p   = personal[i];
       const col = i % cols;
-      const row = Math.floor(i / cols) % rows;
+      const row = Math.floor(i/cols) % rows;
+      if (i > 0 && i % (cols*rows) === 0) doc.addPage();
+      const x = margin + col*(cardW+gap);
+      const y = margin + row*(cardH+gap);
 
-      // Nueva página
-      if (i > 0 && i % (cols * rows) === 0) {
-        doc.addPage();
-        page++;
-      }
-
-      const x = margin + col * (cardW + 4);
-      const y = margin + row * (cardH + 4);
-
-      // Fondo blanco + borde
-      doc.setFillColor(255, 255, 255);
-      doc.setDrawColor(40, 40, 40);
+      // Tarjeta
+      doc.setFillColor(255,255,255);
+      doc.setDrawColor(50,50,50);
       doc.setLineWidth(0.4);
       doc.roundedRect(x, y, cardW, cardH, 3, 3, 'FD');
 
@@ -460,74 +609,107 @@ async function generarPDF() {
       // Logo
       if (logo) {
         try {
-          const logoH = 8, logoW = 20;
-          const lx = x + (cardW - logoW) / 2;
-          doc.addImage(logo, 'PNG', lx, cy, logoW, logoH, '', 'FAST');
-          cy += logoH + 2;
-        } catch(e) { cy += 3; }
+          const lw=22, lh=9, lx=x+(cardW-lw)/2;
+          doc.addImage(logo,'PNG',lx,cy,lw,lh,'','FAST');
+          cy += lh + 2;
+        } catch(e){ cy += 3; }
       } else { cy += 2; }
 
       // Empresa
       doc.setFont('helvetica','bold');
       doc.setFontSize(5.5);
-      doc.setTextColor(60,60,60);
-      const empresaLines = doc.splitTextToSize(p.empresa.toUpperCase(), cardW - 4);
-      doc.text(empresaLines, x + cardW/2, cy, {align:'center'});
-      cy += empresaLines.length * 3.5 + 2;
+      doc.setTextColor(70,70,70);
+      const eLines = doc.splitTextToSize(p.empresa.toUpperCase(), cardW-4);
+      doc.text(eLines, x+cardW/2, cy, {align:'center'});
+      cy += eLines.length*3.2 + 2;
 
       // QR
-      const qr    = qrDataURLs[p.id];
-      const qrSz  = 30;
-      const qx    = x + (cardW - qrSz) / 2;
+      const qr = qrDataURLs[p.id];
+      const qrSz = 32, qx = x+(cardW-qrSz)/2;
       if (qr) {
-        doc.addImage(qr, 'PNG', qx, cy, qrSz, qrSz, '', 'FAST');
+        doc.addImage(qr,'PNG',qx,cy,qrSz,qrSz,'','FAST');
       } else {
-        doc.setDrawColor(200,200,200);
-        doc.rect(qx, cy, qrSz, qrSz);
-        doc.setFontSize(5); doc.setTextColor(150,150,150);
-        doc.text('QR', x + cardW/2, cy + qrSz/2, {align:'center'});
+        doc.setDrawColor(180,180,180);
+        doc.rect(qx,cy,qrSz,qrSz);
+        doc.setFontSize(5);doc.setTextColor(150,150,150);
+        doc.text('ID:'+p.id, x+cardW/2, cy+qrSz/2, {align:'center'});
       }
       cy += qrSz + 2;
 
       // ID
       doc.setFont('helvetica','bold');
       doc.setFontSize(9);
-      doc.setTextColor(0, 86, 179);
-      doc.text('ID: ' + p.id, x + cardW/2, cy, {align:'center'});
+      doc.setTextColor(26,86,219);
+      doc.text('ID: '+p.id, x+cardW/2, cy, {align:'center'});
       cy += 5;
 
       // Nombre
       doc.setFont('helvetica','bold');
       doc.setFontSize(7);
       doc.setTextColor(20,20,20);
-      const nombreLines = doc.splitTextToSize(p.nombre, cardW - 4);
-      doc.text(nombreLines, x + cardW/2, cy, {align:'center'});
-      cy += nombreLines.length * 4 + 1;
+      const nLines = doc.splitTextToSize(p.nombre, cardW-4);
+      doc.text(nLines, x+cardW/2, cy, {align:'center'});
+      cy += nLines.length*3.8+1;
 
       // Puesto
       doc.setFont('helvetica','normal');
       doc.setFontSize(6);
-      doc.setTextColor(90,90,90);
-      const puestoLines = doc.splitTextToSize(p.puesto, cardW - 4);
-      doc.text(puestoLines, x + cardW/2, cy, {align:'center'});
+      doc.setTextColor(100,100,100);
+      const pLines = doc.splitTextToSize(p.puesto, cardW-4);
+      doc.text(pLines, x+cardW/2, cy, {align:'center'});
     }
 
-    setProgress(95, 'Guardando PDF…');
+    setProgress(96,'Guardando…');
     doc.save('Gafetes_QR.pdf');
-
-    setProgress(100, '✅ PDF descargado exitosamente');
-    showAlert('genMsg', '✅ PDF generado con ' + personal.length + ' gafetes', 'success');
+    setProgress(100,'✅ Descargado');
+    showAlert('genMsg','✅ PDF con '+personal.length+' gafetes generado','success');
 
   } catch(err) {
-    showAlert('genMsg', '❌ Error: ' + err.message, 'danger');
+    showAlert('genMsg','❌ Error: '+err.message,'danger');
     console.error(err);
   } finally {
     btn.disabled = false;
-    setTimeout(() => {
-      document.getElementById('progressWrap').className = 'progress-wrap';
-    }, 3000);
+    setTimeout(()=>{ document.getElementById('progressWrap').className='progress-wrap'; },3000);
   }
 }
+
+// ── REPORTE ──
+function cargarReporte() {
+  const btn = document.getElementById('btnReporte');
+  btn.disabled = true; btn.textContent = '⏳ Cargando…';
+  api({ action:'obtenerEstadisticasHoy' })
+    .then(res => {
+      btn.disabled = false; btn.textContent = '🔄 Actualizar reporte';
+      if (res.success) {
+        document.getElementById('statMañana').textContent = res.manana;
+        document.getElementById('statTarde').textContent  = res.tarde;
+        document.getElementById('statTotal').textContent  = res.total;
+      } else {
+        showAlert('reportMsg', res.message, 'danger');
+      }
+    })
+    .catch(() => {
+      btn.disabled = false; btn.textContent = '🔄 Actualizar reporte';
+      showAlert('reportMsg','Error de red','danger');
+    });
+}
+
+function enviarReporteManual() {
+  const btn = document.getElementById('btnEnviarReporte');
+  btn.disabled = true; btn.textContent = '⏳ Enviando…';
+  api({ action:'enviarReporteManual' })
+    .then(res => {
+      btn.disabled = false; btn.textContent = '📧 Enviar reporte ahora por correo';
+      showAlert('reportMsg', res.message, res.success ? 'success' : 'danger');
+    })
+    .catch(() => {
+      btn.disabled = false; btn.textContent = '📧 Enviar reporte ahora por correo';
+      showAlert('reportMsg','Error al enviar','danger');
+    });
+}
+
+// ── INIT ──
+cargarLogo();
 </script>
 </body>
 </html>
