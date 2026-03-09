@@ -162,6 +162,7 @@ body{background:var(--white);color:var(--text);min-height:100dvh}
       <div class="card">
         <div class="sec-label">Escáner en vivo</div>
         <div id="reader"></div>
+        <div id="queueBadge" style="display:none;margin-top:8px;padding:6px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;font-size:12px;font-weight:600;color:#92400e;text-align:center">⏳ Sincronizando...</div>
         <div class="scan-result" id="scanResult"></div>
       </div>
     </div>
@@ -249,17 +250,60 @@ var C = {
 };
 
 // ═══════════════════════════════════
-// COLA BACKGROUND
+// COLA BACKGROUND — con indicador visual y alerta de fallo
 // ═══════════════════════════════════
 var WQ = {
   q: [], busy: false,
-  add: function(payload){ this.q.push(payload); if(!this.busy) this.run(); },
+
+  add: function(payload){
+    this.q.push({ payload: payload, intentos: 0 });
+    this.updateIndicador();
+    if(!this.busy) this.run();
+  },
+
   run: function(){
     if(this.busy || !this.q.length) return;
     this.busy = true;
     var self = this;
-    call(this.q[0]).then(function(){ self.q.shift(); self.busy=false; self.run(); })
-      .catch(function(){ self.busy=false; setTimeout(function(){ self.run(); }, 3000); });
+    var item = this.q[0];
+    call(item.payload)
+      .then(function(r){
+        self.q.shift();
+        self.busy = false;
+        self.updateIndicador();
+        self.run();
+      })
+      .catch(function(){
+        item.intentos++;
+        self.busy = false;
+        if(item.intentos >= 3){
+          // 3 fallos — avisar al guardia
+          self.q.shift();
+          self.updateIndicador();
+          self.alertaFallo(item.payload.id || '?');
+        } else {
+          setTimeout(function(){ self.run(); }, 4000);
+        }
+      });
+  },
+
+  updateIndicador: function(){
+    var n = this.q.length;
+    var el = document.getElementById('queueBadge');
+    if(!el) return;
+    if(n > 0){
+      el.textContent = n + ' pendiente' + (n>1?'s':'');
+      el.style.display = 'inline-block';
+    } else {
+      el.style.display = 'none';
+    }
+  },
+
+  alertaFallo: function(id){
+    beep('error');
+    var el = document.getElementById('scanResult');
+    el.textContent = '⚠️ No se pudo registrar ID ' + id + ' después de 3 intentos.\nVerifica la conexión y avisa al supervisor.';
+    el.className = 'scan-result visible danger';
   }
 };
 
@@ -464,20 +508,57 @@ function stopScanner(){
     qrScanner.stop().then(function(){scanning=false;}).catch(function(){scanning=false;});
 }
 
-function onQR(text){
+// Anti-doble escaneo — guarda timestamp del último escaneo por ID
+var scanned = {};
+
+function onQR(raw){
   if(processing) return;
-  processing = true;
-  var persona = C.find(text);
-  if(!persona){
-    scanMsg('🔍 Validando con servidor…','info');
-    call({action:'registrarEscaneo',id:text})
-      .then(function(r){ scanMsg(r.message, r.success?'success':'danger'); setTimeout(function(){processing=false;},3000); })
-      .catch(function(){ scanMsg('❌ Error de red.','danger'); setTimeout(function(){processing=false;},3000); });
+
+  // Verificar firma del QR
+  var partes = raw.split('-QR-');
+  if(partes.length !== 2 || partes[1].trim() !== QR_SECRET){
+    beep('error');
+    scanMsg('❌ QR no válido o no pertenece a este sistema.', 'danger');
+    processing = true;
+    setTimeout(function(){ processing=false; }, 2500);
     return;
   }
-  scanMsg('✅ Acceso registrado\n👤 '+persona.nombre+'\n🏢 '+persona.empresa, 'success');
-  WQ.add({action:'registrarEscaneo',id:text});
-  setTimeout(function(){processing=false;}, 2800);
+  var id = partes[0].trim();
+
+  // Anti-doble: mismo ID bloqueado 8 segundos
+  var ahora = Date.now();
+  if(scanned[id] && (ahora - scanned[id]) < 8000){
+    beep('ya');
+    scanMsg('⚠️ ID ' + id + ' ya escaneado. Espera unos segundos.', 'warning');
+    return;
+  }
+  scanned[id] = ahora;
+  processing = true;
+
+  var persona = C.find(id);
+  if(!persona){
+    beep('error');
+    scanMsg('🔍 ID ' + id + ' verificando en servidor…','info');
+    call({action:'registrarEscaneo', id: raw})
+      .then(function(r){
+        if(r.success) beep('ok'); else beep('error');
+        scanMsg(r.message, r.success?'success':'danger');
+        setTimeout(function(){processing=false;}, 2500);
+      })
+      .catch(function(){
+        beep('error');
+        scanMsg('❌ Error de red.','danger');
+        setTimeout(function(){processing=false;}, 2500);
+      });
+    return;
+  }
+
+  beep('ok');
+  scanMsg('✅ Acceso registrado
+👤 '+persona.nombre+'
+🏢 '+persona.empresa, 'success');
+  WQ.add({action:'registrarEscaneo', id: raw}); // manda QR firmado completo
+  setTimeout(function(){processing=false;}, 2500);
 }
 
 // ═══════════════════════════════════
@@ -523,7 +604,7 @@ document.getElementById('btnPDF').addEventListener('click', async function(){
       qrMap[p.id] = await new Promise(function(res){
         var pid=p.id; qrDiv.innerHTML='';
         try{
-          new QRCode(qrDiv,{text:String(pid),width:200,height:200,correctLevel:QRCode.CorrectLevel.H});
+          new QRCode(qrDiv,{text:String(pid)+'-QR-'+QR_SECRET,width:200,height:200,correctLevel:QRCode.CorrectLevel.H});
           setTimeout(function(){
             var cv=qrDiv.querySelector('canvas'), im=qrDiv.querySelector('img');
             res(cv?cv.toDataURL('image/png'):(im&&im.src?im.src:''));
