@@ -6,6 +6,7 @@
 <title>Control de Acceso QR</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>if(typeof window.jspdf==="undefined"&&typeof jsPDF!=="undefined"){window.jspdf={jsPDF:jsPDF};}</script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -476,11 +477,16 @@ function onQR(raw){
 
   var persona=findP(id);
   if(!persona){
-    beep('error'); showSR('🔍 Verificando en servidor…','info');
-    api({action:'registrarEscaneo',id:raw})
-      .then(function(r){ if(r&&r.success)beep('ok'); else beep('error'); showSR(r?r.message:'Error','success'===r?'success':'danger'); setTimeout(function(){processing=false;},2500); })
-      .catch(function(){ beep('error'); showSR('❌ Error de red.','danger'); setTimeout(function(){processing=false;},2500); });
-    return;
+    // ID no está en lista — puede ser que el cache no haya cargado aún
+    if(!cacheOk()){
+      beep('error'); showSR('⚠️ Lista no cargada aún.
+Espera unos segundos y vuelve a escanear.','warning');
+      setTimeout(function(){processing=false;},2500); return;
+    }
+    // Cache cargado pero ID no existe — rechazar
+    beep('error');
+    showSR('❌ ID '+id+' no registrado en el sistema.','danger');
+    setTimeout(function(){processing=false;},2500); return;
   }
 
   beep('ok');
@@ -532,7 +538,9 @@ document.getElementById('btnPDF').addEventListener('click',async function(){
     }
     document.body.removeChild(qDiv);
     prog(72,'Construyendo PDF…');
-    var doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'letter'});
+    var jsPDFClass = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if(!jsPDFClass) throw new Error('jsPDF no cargó correctamente. Recarga la página.');
+    var doc=new jsPDFClass({orientation:'portrait',unit:'mm',format:'letter'});
     var pW=215.9,pH=279.4,mg=8,cols=3,rows=3,gap=4;
     var cW=(pW-mg*2-(cols-1)*gap)/cols,cH=(pH-mg*2-(rows-1)*gap)/rows;
     for(var j=0;j<personal.length;j++){
@@ -555,7 +563,18 @@ document.getElementById('btnPDF').addEventListener('click',async function(){
       doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor(100,100,100);
       var pL=doc.splitTextToSize(per.puesto,cW-4); doc.text(pL,x+cW/2,cy,{align:'center'});
     }
-    prog(98,'Guardando…'); doc.save('Gafetes_QR.pdf'); prog(100,'✅ Descargado');
+    prog(98,'Guardando…');
+    // Descarga compatible con todos los navegadores
+    try {
+      doc.save('Gafetes_QR.pdf');
+    } catch(saveErr) {
+      // Fallback si save() falla
+      var pdfData = doc.output('datauristring');
+      var a = document.createElement('a');
+      a.href = pdfData; a.download = 'Gafetes_QR.pdf';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    prog(100,'✅ Descargado');
     showMsg('gMsg','✅ PDF con '+personal.length+' gafetes generado','success');
   }catch(err){ showMsg('gMsg','❌ Error: '+err.message,'danger'); console.error(err); }
   finally{ btn.disabled=false; setTimeout(function(){document.getElementById('pWrap').className='pw2';},3000); }
