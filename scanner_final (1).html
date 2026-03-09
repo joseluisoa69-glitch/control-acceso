@@ -531,28 +531,34 @@ function login() {
   btn.disabled = true; btn.textContent = 'Verificando…';
   showAlert('loginMsg','Conectando…','warning');
 
-  // Lanzar auth Y precarga en paralelo
-  Promise.all([
-    api({ action:'validarLogin', correo:email, password:pass }),
-    Cache.isValid() ? Promise.resolve(null) : precargarDatos()
-  ])
-  .then(([authRes]) => {
-    btn.disabled = false; btn.textContent = 'Ingresar al sistema';
-    if (authRes.success) {
+  // Primero validar login, luego precargar datos
+  api({ action:'validarLogin', correo:email, password:pass })
+    .then(authRes => {
+      btn.disabled = false; btn.textContent = 'Ingresar al sistema';
+      if (!authRes.success) {
+        showAlert('loginMsg', authRes.message || 'Credenciales inválidas', 'danger');
+        return;
+      }
+      // Login OK — entrar de inmediato
       document.getElementById('loginView').classList.add('hidden');
       document.getElementById('mainView').classList.remove('hidden');
       document.getElementById('loginMsg').className = 'alert';
-      if (Cache.logo) mostrarLogoFondo(Cache.logo);
       updateDate();
       iniciarScanner();
-    } else {
-      showAlert('loginMsg', authRes.message || 'Credenciales inválidas', 'danger');
-    }
-  })
-  .catch(() => {
-    btn.disabled = false; btn.textContent = 'Ingresar al sistema';
-    showAlert('loginMsg','Error de red. Verifica tu conexión.','danger');
-  });
+      // Precargar datos en background (no bloquea)
+      if (!Cache.isValid()) {
+        precargarDatos().then(() => {
+          if (Cache.logo) mostrarLogoFondo(Cache.logo);
+        }).catch(e => console.warn('Precarga falló:', e));
+      } else {
+        if (Cache.logo) mostrarLogoFondo(Cache.logo);
+      }
+    })
+    .catch(err => {
+      btn.disabled = false; btn.textContent = 'Ingresar al sistema';
+      console.error('Login error:', err);
+      showAlert('loginMsg','Error de red. Verifica tu conexión.','danger');
+    });
 }
 
 function logout() {
