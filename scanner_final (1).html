@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Control de Acceso QR</title>
 <!-- QR Code generator -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <!-- jsPDF para generar PDF en navegador -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- Escáner QR -->
@@ -391,20 +391,36 @@ async function generarPDF() {
     const logo     = res.logo || '';
     setProgress(15, 'Generando códigos QR…');
 
-    // 2. Generar QR en canvas para cada persona
+    // 2. Generar QR en canvas para cada persona usando qrcodejs
     const qrDataURLs = {};
+    const qrContainer = document.createElement('div');
+    qrContainer.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:200px;height:200px';
+    document.body.appendChild(qrContainer);
+
     for (let i = 0; i < personal.length; i++) {
       const p = personal[i];
       qrDataURLs[p.id] = await new Promise((resolve) => {
-        QRCode.toDataURL(String(p.id), {
-          width: 200, margin: 1,
-          errorCorrectionLevel: 'H',
-          color: { dark: '#000000', light: '#ffffff' }
-        }, (err, url) => resolve(err ? '' : url));
+        qrContainer.innerHTML = '';
+        try {
+          const qr = new QRCode(qrContainer, {
+            text: String(p.id),
+            width: 200, height: 200,
+            correctLevel: QRCode.CorrectLevel.H
+          });
+          // qrcodejs es síncrono, el canvas está listo de inmediato
+          setTimeout(() => {
+            const canvas = qrContainer.querySelector('canvas');
+            const img    = qrContainer.querySelector('img');
+            if (canvas) resolve(canvas.toDataURL('image/png'));
+            else if (img) resolve(img.src);
+            else resolve('');
+          }, 50);
+        } catch(e) { resolve(''); }
       });
       const pct = 15 + Math.round((i + 1) / personal.length * 55);
       setProgress(pct, 'QR ' + (i+1) + ' de ' + personal.length + '…');
     }
+    document.body.removeChild(qrContainer);
 
     setProgress(72, 'Construyendo PDF…');
 
