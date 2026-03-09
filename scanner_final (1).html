@@ -505,8 +505,7 @@ function onQR(raw){
   if(!persona){
     // ID no está en lista — puede ser que el cache no haya cargado aún
     if(!cacheOk()){
-      beep('error'); showSR('⚠️ Lista no cargada aún.
-Espera unos segundos y vuelve a escanear.','warning');
+      beep('error'); showSR('⚠️ Lista no cargada. Espera y vuelve a escanear.','warning');
       setTimeout(function(){processing=false;},2500); return;
     }
     // Cache cargado pero ID no existe — rechazar
