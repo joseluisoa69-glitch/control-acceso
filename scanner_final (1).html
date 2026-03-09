@@ -365,58 +365,82 @@ function showTab(v){
 // LOGIN
 // ═══════════════════════════════════════════════
 function doLogin(){
-  var email=document.getElementById('iEmail').value.trim();
-  var pass=document.getElementById('iPass').value.trim();
-  if(!email||!pass){ showMsg('lMsg','Completa ambos campos.','danger'); return; }
+  // Captura cualquier error desde el primer momento
+  try {
+    var email=document.getElementById('iEmail').value.trim();
+    var pass=document.getElementById('iPass').value.trim();
 
-  if(esBloqueado()){
-    var seg=Math.ceil((bloqHasta-Date.now())/1000);
-    showMsg('lMsg','Demasiados intentos. Espera '+seg+' segundos.','danger');
-    return;
-  }
+    showMsg('lMsg','Paso 1: leyendo campos...','info');
 
-  var btn=document.getElementById('btnLogin');
-  btn.disabled=true; btn.textContent='Verificando…';
-  showMsg('lMsg','Conectando…','info');
+    if(!email||!pass){ showMsg('lMsg','Completa ambos campos.','danger'); return; }
 
-  // Login directo — sin pasar por api() para no requerir token
-  fetch(URL,{
-    method:'POST',
-    body:JSON.stringify({action:'validarLogin',correo:email,password:pass,_s:SEC}),
-    headers:{'Content-Type':'text/plain'}
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(r){
-    btn.disabled=false; btn.textContent='Ingresar al sistema';
-    // DEBUG — muestra respuesta cruda del servidor
-    showMsg('lMsg','Servidor: '+JSON.stringify(r),'info');
-    if(!r||!r.success){
-      registrarFallo();
-      var rest=5-fallos; var extra=fallos>0?' ('+rest+' intentos restantes)':'';
-      showMsg('lMsg',(r&&r.message?r.message:'Credenciales inválidas')+extra,'danger');
+    showMsg('lMsg','Paso 2: verificando bloqueo...','info');
+
+    if(esBloqueado()){
+      var seg=Math.ceil((bloqHasta-Date.now())/1000);
+      showMsg('lMsg','Bloqueado. Espera '+seg+' seg.','danger');
       return;
     }
-    // ✅ LOGIN OK
-    resetFallos();
-    setToken(r.token||'');
-    document.getElementById('loginView').classList.add('hidden');
-    document.getElementById('mainView').classList.remove('hidden');
-    document.getElementById('lMsg').className='mb';
-    document.getElementById('topDate').textContent=
-      new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
-    resetInact();
-    startScan();
-    // Precargar datos en background
-    if(!cacheOk()){
-      precargar().catch(function(e){ console.warn('Precarga:',e); });
-    } else {
-      if(CP.logo) poneLogo(CP.logo);
-    }
-  })
-  .catch(function(err){
-    btn.disabled=false; btn.textContent='Ingresar al sistema';
-    showMsg('lMsg','❌ Error de red: '+String(err),'danger');
-  });
+
+    var btn=document.getElementById('btnLogin');
+    btn.disabled=true; btn.textContent='Verificando…';
+    showMsg('lMsg','Paso 3: conectando con servidor...','info');
+
+    fetch(URL,{
+      method:'POST',
+      body:JSON.stringify({action:'validarLogin',correo:email,password:pass,_s:SEC}),
+      headers:{'Content-Type':'text/plain'}
+    })
+    .then(function(r){
+      showMsg('lMsg','Paso 4: respuesta HTTP '+r.status,'info');
+      return r.text(); // usar text() primero para ver respuesta cruda
+    })
+    .then(function(txt){
+      showMsg('lMsg','Paso 5: respuesta='+txt.substring(0,120),'info');
+      var r;
+      try{ r=JSON.parse(txt); } catch(pe){ 
+        btn.disabled=false; btn.textContent='Ingresar al sistema';
+        showMsg('lMsg','Error JSON: '+txt.substring(0,100),'danger'); 
+        return; 
+      }
+      btn.disabled=false; btn.textContent='Ingresar al sistema';
+      if(!r||!r.success){
+        registrarFallo();
+        var rest=5-fallos;
+        showMsg('lMsg',(r&&r.message?r.message:'Inválido')+' ('+rest+' intentos restantes)','danger');
+        return;
+      }
+      // ✅ LOGIN OK
+      showMsg('lMsg','✅ Login OK! Entrando...','success');
+      resetFallos();
+      setToken(r.token||'');
+      setTimeout(function(){
+        document.getElementById('loginView').classList.add('hidden');
+        document.getElementById('mainView').classList.remove('hidden');
+        document.getElementById('lMsg').className='mb';
+        document.getElementById('topDate').textContent=
+          new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+        resetInact();
+        startScan();
+        if(!cacheOk()){
+          precargar().catch(function(e){ console.warn('Precarga:',e); });
+        } else {
+          if(CP.logo) poneLogo(CP.logo);
+        }
+      }, 800);
+    })
+    .catch(function(err){
+      btn.disabled=false; btn.textContent='Ingresar al sistema';
+      showMsg('lMsg','❌ Fetch falló: '+String(err),'danger');
+    });
+
+  } catch(fatalErr) {
+    // Error fatal de JS — lo muestra en pantalla
+    document.getElementById('lMsg').textContent = '💥 Error JS: '+String(fatalErr);
+    document.getElementById('lMsg').className = 'mb on danger';
+    document.getElementById('btnLogin').disabled = false;
+    document.getElementById('btnLogin').textContent = 'Ingresar al sistema';
+  }
 }
 
 function doOut(){
