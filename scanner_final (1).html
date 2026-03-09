@@ -264,11 +264,58 @@ var WQ = {
 };
 
 // ═══════════════════════════════════
-// API
+// SEGURIDAD — Token + Secret
+// ═══════════════════════════════════
+var SEC = {
+  secret: 'QMV-2025-X9K7-CTRL',
+  token:  '',
+  fallos: 0,
+  bloqueadoHasta: 0,
+
+  setToken: function(t){ this.token=t; try{sessionStorage.setItem('_st',t);}catch(e){} },
+  getToken: function(){
+    if(this.token) return this.token;
+    try{ var t=sessionStorage.getItem('_st'); if(t){this.token=t; return t;} }catch(e){}
+    return '';
+  },
+  clear: function(){ this.token=''; this.fallos=0; try{sessionStorage.removeItem('_st');}catch(e){} },
+  bloqueado: function(){
+    if(this.bloqueadoHasta && Date.now()<this.bloqueadoHasta){
+      return 'Demasiados intentos. Espera '+Math.ceil((this.bloqueadoHasta-Date.now())/1000)+' seg.';
+    }
+    return false;
+  },
+  fallo: function(){ this.fallos++; if(this.fallos>=5){this.bloqueadoHasta=Date.now()+600000; this.fallos=0;} },
+  ok:    function(){ this.fallos=0; this.bloqueadoHasta=0; }
+};
+
+// Cierre por inactividad (30 min)
+var inactTimer=null;
+function resetInact(){
+  clearTimeout(inactTimer);
+  inactTimer=setTimeout(function(){
+    if(SEC.getToken()){
+      call({action:'cerrarSesion'}).catch(function(){});
+      SEC.clear(); C.clear(); doLogout();
+      msg('loginMsg','Sesión cerrada por inactividad.','warning');
+    }
+  }, 1800000);
+}
+document.addEventListener('click', resetInact);
+document.addEventListener('touchstart', resetInact);
+
+// ═══════════════════════════════════
+// API — token + secret automáticos
 // ═══════════════════════════════════
 function call(payload){
-  return fetch(AS_URL, { method:'POST', body:JSON.stringify(payload), headers:{'Content-Type':'text/plain'} })
-    .then(function(r){ return r.json(); });
+  var p = Object.assign({}, payload, {_s: SEC.secret});
+  if(payload.action !== 'validarLogin') p._t = SEC.getToken();
+  return fetch(AS_URL, {method:'POST', body:JSON.stringify(p), headers:{'Content-Type':'text/plain'}})
+    .then(function(r){ return r.json(); })
+    .then(function(r){
+      if(r && r.expired){ SEC.clear(); C.clear(); doLogout(); msg('loginMsg','Sesión expirada. Inicia sesión de nuevo.','warning'); }
+      return r;
+    });
 }
 
 function precargar(){
@@ -330,45 +377,56 @@ function doLogin(){
   var pass  = document.getElementById('inpPass').value.trim();
   if(!email || !pass){ msg('loginMsg','Completa ambos campos.','danger'); return; }
 
+  // Verificar bloqueo local por intentos fallidos
+  var blq = SEC.bloqueado();
+  if(blq){ msg('loginMsg',blq,'danger'); return; }
+
   var btn = document.getElementById('btnLogin');
   btn.disabled = true;
   btn.textContent = 'Verificando…';
   msg('loginMsg','Conectando con el servidor…','info');
 
-  call({ action:'validarLogin', correo:email, password:pass })
-    .then(function(r){
-      btn.disabled = false;
-      btn.textContent = 'Ingresar al sistema';
-      // Mostrar respuesta cruda para debug
-      console.log('Respuesta servidor:', JSON.stringify(r));
-      if(!r || typeof r !== 'object'){
-        msg('loginMsg','Respuesta inválida del servidor: '+JSON.stringify(r),'danger');
-        return;
-      }
-      if(!r.success){
-        msg('loginMsg','❌ '+(r.message || 'Credenciales inválidas'), 'danger');
-        return;
-      }
-      // ENTRAR
-      document.getElementById('loginView').classList.add('hidden');
-      document.getElementById('mainView').classList.remove('hidden');
-      document.getElementById('loginMsg').className = 'msg-box';
-      document.getElementById('topDate').textContent =
-        new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
-      startScanner();
-      if(!C.ok()) precargar().catch(function(e){ console.warn('Precarga falló:',e); });
-      else poneLogo(C.logo);
-    })
-    .catch(function(err){
-      btn.disabled = false;
-      btn.textContent = 'Ingresar al sistema';
-      console.error('Error fetch login:', err);
-      msg('loginMsg','❌ Error: '+String(err),'danger');
-    });
+  fetch(AS_URL, {
+    method:'POST',
+    body: JSON.stringify({ action:'validarLogin', correo:email, password:pass, _s: SEC.secret }),
+    headers:{'Content-Type':'text/plain'}
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(r){
+    btn.disabled = false;
+    btn.textContent = 'Ingresar al sistema';
+    if(!r || !r.success){
+      SEC.fallo();
+      var intentosRestantes = 5 - SEC.fallos;
+      var extra = SEC.fallos > 0 ? ' (' + intentosRestantes + ' intentos restantes)' : '';
+      msg('loginMsg', (r && r.message ? r.message : 'Credenciales inválidas') + extra, 'danger');
+      return;
+    }
+    // Login OK
+    SEC.ok();
+    SEC.setToken(r.token); // guardar token de sesión
+    document.getElementById('loginView').classList.add('hidden');
+    document.getElementById('mainView').classList.remove('hidden');
+    document.getElementById('loginMsg').className = 'msg-box';
+    document.getElementById('topDate').textContent =
+      new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+    resetInact();
+    startScanner();
+    if(!C.ok()) precargar().catch(function(e){ console.warn('Precarga falló:',e); });
+    else poneLogo(C.logo);
+  })
+  .catch(function(err){
+    btn.disabled = false;
+    btn.textContent = 'Ingresar al sistema';
+    msg('loginMsg','❌ Error de red: '+String(err),'danger');
+  });
 }
 
 function doLogout(){
   stopScanner();
+  clearTimeout(inactTimer);
+  if(SEC.getToken()) call({action:'cerrarSesion'}).catch(function(){});
+  SEC.clear();
   document.getElementById('mainView').classList.add('hidden');
   document.getElementById('loginView').classList.remove('hidden');
   document.getElementById('inpEmail').value='';
