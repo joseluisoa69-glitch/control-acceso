@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Control de Acceso QR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>if(typeof window.jspdf==="undefined"&&typeof jsPDF!=="undefined"){window.jspdf={jsPDF:jsPDF};}</script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f5f7fa;--white:#fff;--border:#e2e8f0;--accent:#1a56db;--accent-light:#e8f0fe;--success:#059669;--sbg:#ecfdf5;--danger:#dc2626;--dbg:#fef2f2;--warning:#d97706;--wbg:#fffbeb;--info:#0284c7;--ibg:#f0f9ff;--text:#1e293b;--muted:#64748b;--font:'Outfit',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:var(--font)}
+body{background:var(--white);color:var(--text);min-height:100dvh}
+.app{max-width:480px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column}
+
+/* LOGIN */
+#loginView{flex:1;display:flex;flex-direction:column;min-height:100dvh;position:relative;overflow:hidden;background:var(--white)}
+#logoBg{position:absolute;bottom:0;left:0;right:0;height:52%;z-index:0;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none}
+#logoBg img{width:86%;object-fit:contain;opacity:0.07;filter:grayscale(20%)}
+.lc{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;padding:0 24px 40px}
+.lh{padding:52px 0 28px;text-align:center}
+.shield{width:60px;height:60px;border-radius:16px;background:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 6px 24px rgba(26,86,219,.35)}
+.shield svg{width:30px;height:30px;fill:white}
+.lh h1{font-size:1.7em;font-weight:700;color:var(--text);margin-bottom:6px}
+.lh p{font-size:13px;color:var(--muted)}
+.lcard{background:var(--white);border-radius:20px;padding:26px;box-shadow:0 4px 28px rgba(0,0,0,.1);border:1px solid var(--border)}
+.fl{margin-bottom:16px}
+.fl label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.9px;margin-bottom:8px}
+.fl input{width:100%;padding:13px 16px;background:#f8fafc;border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;font-family:var(--font);outline:none;transition:border-color .2s,box-shadow .2s}
+.fl input:focus{border-color:var(--accent);background:var(--white);box-shadow:0 0 0 4px rgba(26,86,219,.1)}
+.pw{position:relative}
+.pw input{padding-right:50px}
+.eye{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:var(--muted);padding:4px;line-height:1}
+.btnp{width:100%;padding:14px;border:none;border-radius:10px;font-weight:600;font-size:15px;cursor:pointer;font-family:var(--font);background:var(--accent);color:white;box-shadow:0 2px 14px rgba(26,86,219,.3);margin-top:4px;transition:all .2s}
+.btnp:hover{background:#1648c0}
+.btnp:active{transform:scale(.98)}
+.btnp:disabled{background:#94a3b8;cursor:not-allowed;transform:none;box-shadow:none}
+.mb{padding:12px 14px;border-radius:10px;font-size:13px;font-weight:500;margin-top:12px;display:none}
+.mb.on{display:block}
+.mb.info{background:var(--ibg);border:1px solid rgba(2,132,199,.2);color:#0c4a6e}
+.mb.danger{background:var(--dbg);border:1px solid rgba(220,38,38,.2);color:#991b1b}
+.mb.success{background:var(--sbg);border:1px solid rgba(5,150,105,.2);color:#065f46}
+.mb.warning{background:var(--wbg);border:1px solid rgba(217,119,6,.2);color:#92400e}
+
+/* MAIN */
+#mainView{flex:1;display:flex;flex-direction:column}
+.topbar{background:var(--white);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
+.ticon{width:36px;height:36px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ticon svg{width:18px;height:18px;fill:white}
+.ttitle{font-weight:700;font-size:15px;color:var(--text)}
+.tsub{font-size:11px;color:var(--muted)}
+.bout{padding:8px 14px;background:var(--dbg);color:var(--danger);border:1px solid rgba(220,38,38,.25);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);white-space:nowrap}
+.tabs{display:flex;background:var(--white);border-bottom:1px solid var(--border);padding:0 16px}
+.tab{flex:1;padding:13px 6px;text-align:center;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;transition:all .2s;background:none;border-left:none;border-right:none;border-top:none;font-family:var(--font)}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.mc{flex:1;padding:16px;overflow-y:auto}
+.card{background:var(--white);border-radius:16px;padding:18px;box-shadow:0 1px 8px rgba(0,0,0,.07);border:1px solid var(--border);margin-bottom:14px}
+.ctitle{font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px}
+.slabel{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px}
+
+/* SCANNER */
+#reader{width:100%;border-radius:10px;overflow:hidden;background:#000;min-height:260px;border:2px solid var(--border)}
+#reader__scan_region{background:transparent!important}
+#reader__dashboard{padding:8px!important;background:#f8fafc!important;border-top:1px solid var(--border)!important}
+#reader__status_span{display:none!important}
+#reader__camera_selection{background:#f8fafc!important;color:var(--text)!important;border:1.5px solid var(--border)!important;border-radius:8px!important;padding:8px!important;font-size:12px!important;width:100%!important;font-family:var(--font)!important}
+#html5-qrcode-button-camera-start,#html5-qrcode-button-camera-stop,#html5-qrcode-button-camera-permission{background:var(--accent)!important;color:white!important;border:none!important;border-radius:8px!important;padding:9px 16px!important;font-weight:600!important;cursor:pointer!important;font-size:13px!important;margin:3px!important;font-family:var(--font)!important}
+#html5-qrcode-button-camera-stop{background:var(--danger)!important}
+.sr{margin-top:12px;padding:14px 16px;border-radius:12px;font-size:14px;font-weight:500;line-height:1.7;white-space:pre-line;display:none}
+.sr.on{display:block}
+.sr.success{background:var(--sbg);border:1px solid rgba(5,150,105,.2);color:#065f46}
+.sr.danger{background:var(--dbg);border:1px solid rgba(220,38,38,.2);color:#991b1b}
+.sr.info{background:var(--ibg);border:1px solid rgba(2,132,199,.2);color:#0c4a6e}
+.sr.warning{background:var(--wbg);border:1px solid rgba(217,119,6,.2);color:#92400e}
+#qBadge{display:none;margin-top:8px;padding:7px 12px;background:var(--wbg);border:1px solid #fcd34d;border-radius:8px;font-size:12px;font-weight:600;color:#92400e;text-align:center}
+
+/* GENERATOR */
+.flbl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:12px 0 6px;display:block}
+.gsel,.ginp{width:100%;padding:12px 14px;background:#f8fafc;border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;font-family:var(--font);outline:none}
+.gsel:focus,.ginp:focus{border-color:var(--accent)}
+.pw2{margin-top:12px;display:none}
+.pw2.on{display:block}
+.pb{height:6px;background:var(--border);border-radius:6px;overflow:hidden;margin-bottom:6px}
+.pf{height:100%;background:linear-gradient(90deg,var(--accent),#60a5fa);border-radius:6px;transition:width .3s;width:0%}
+.pt{font-size:12px;color:var(--muted);text-align:center}
+
+/* REPORT */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.sbox{background:var(--bg);border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border)}
+.snum{font-size:30px;font-weight:700;line-height:1}
+.slb{font-size:11px;color:var(--muted);margin-top:5px;font-weight:500}
+.sbox.mn .snum{color:#d97706}
+.sbox.tr .snum{color:#7c3aed}
+.sbox.tt .snum{color:var(--accent)}
+.brep{width:100%;padding:12px;background:var(--accent-light);color:var(--accent);border:1.5px solid rgba(26,86,219,.2);border-radius:10px;font-weight:600;font-size:14px;cursor:pointer;font-family:var(--font);margin-top:8px}
+.brep:disabled{opacity:.5;cursor:not-allowed}
+.sdiv{height:1px;background:var(--border);margin:14px 0}
+.snote{font-size:11px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.7}
+
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- LOGIN -->
+<div id="loginView">
+  <div id="logoBg"></div>
+  <div class="lc">
+    <div class="lh">
+      <div class="shield"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></div>
+      <h1>Control de Acceso</h1>
+      <p>Sistema de vigilancia y registro</p>
+    </div>
+    <div class="lcard">
+      <div class="fl"><label>Correo electrónico</label><input type="email" id="iEmail" placeholder="usuario@empresa.com" autocomplete="email"></div>
+      <div class="fl"><label>Contraseña</label>
+        <div class="pw"><input type="password" id="iPass" placeholder="••••••••"><button class="eye" id="eyeBtn" type="button">👁️</button></div>
+      </div>
+      <button class="btnp" id="btnLogin" type="button">Ingresar al sistema</button>
+      <div class="mb" id="lMsg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="mainView" class="hidden">
+  <div class="topbar">
+    <div class="ticon"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></div>
+    <div style="flex:1"><div class="ttitle">Control de Acceso</div><div class="tsub" id="topDate"></div></div>
+    <button class="bout" id="btnOut" type="button">⏻ Salir</button>
+  </div>
+  <div class="tabs">
+    <button class="tab on" id="tScan"   type="button">📷 Escanear</button>
+    <button class="tab"    id="tGen"    type="button">🪪 Gafetes</button>
+    <button class="tab"    id="tReport" type="button">📊 Reporte</button>
+  </div>
+  <div class="mc">
+
+    <!-- SCAN -->
+    <div id="vScan">
+      <div class="card">
+        <div class="slabel">Escáner en vivo</div>
+        <div id="reader"></div>
+        <div id="qBadge">⏳ Sincronizando registros...</div>
+        <div class="sr" id="sResult"></div>
+      </div>
+    </div>
+
+    <!-- GAFETES -->
+    <div id="vGen" class="hidden">
+      <div class="card">
+        <div class="ctitle">🪪 Generador de gafetes PDF</div>
+        <span class="flbl">Modo</span>
+        <select class="gsel" id="modoGen">
+          <option value="todos">Todo el listado</option>
+          <option value="rango">Por rango de IDs</option>
+          <option value="individual">IDs específicos</option>
+        </select>
+        <div id="pRango" class="hidden">
+          <span class="flbl">ID Inicio</span><input type="number" class="ginp" id="rIni" placeholder="1">
+          <span class="flbl">ID Fin</span><input type="number" class="ginp" id="rFin" placeholder="50">
+        </div>
+        <div id="pInd" class="hidden">
+          <span class="flbl">IDs separados por coma</span><input type="text" class="ginp" id="rIds" placeholder="1, 5, 87">
+        </div>
+        <button class="btnp" id="btnPDF" type="button" style="margin-top:16px">⬇️ Generar y descargar PDF</button>
+        <div class="pw2" id="pWrap"><div class="pb"><div class="pf" id="pFill"></div></div><div class="pt" id="pTxt">Preparando...</div></div>
+        <div class="mb" id="gMsg"></div>
+      </div>
+    </div>
+
+    <!-- REPORTE -->
+    <div id="vReport" class="hidden">
+      <div class="card">
+        <div class="ctitle">📊 Reporte del día</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Asistencia de hoy. Reportes automáticos: 8am, 8pm y 9pm.</p>
+        <div class="sgrid">
+          <div class="sbox mn"><div class="snum" id="sM">—</div><div class="slb">Turno Mañana<br>(antes 12pm)</div></div>
+          <div class="sbox tr"><div class="snum" id="sT">—</div><div class="slb">Turno Tarde<br>(12pm en adelante)</div></div>
+          <div class="sbox tt" style="grid-column:span 2"><div class="snum" id="sTot">—</div><div class="slb">Total registros hoy</div></div>
+        </div>
+        <button class="brep" id="btnRef" type="button">🔄 Actualizar reporte</button>
+        <div class="sdiv"></div>
+        <button class="brep" id="btnSend" type="button">📧 Enviar reporte ahora</button>
+        <div class="snote">Envíos automáticos:<br>🌅 8:00 am · 🌆 8:00 pm · 🌙 9:00 pm</div>
+        <div class="mb" id="rMsg"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════
+// CONFIGURACIÓN — solo cambiar estas 2 líneas
+// ═══════════════════════════════════════════════
+var URL  = 'https://script.google.com/macros/s/AKfycbyME7h87vWO2ZsvCE932oGN36BGIjKgpLCkbNPy-PrE7TJkLkh0fLyBiIzHQPu1YHka/exec';
+var SEC  = 'QMV-2025-X9K7-CTRL'; // secret compartido con el servidor
+
+// ═══════════════════════════════════════════════
+// SESIÓN
+// ═══════════════════════════════════════════════
+var token = '';
+function getToken(){ if(token) return token; try{ return sessionStorage.getItem('_t')||''; }catch(e){ return ''; } }
+function setToken(t){ token=t; try{ sessionStorage.setItem('_t',t); }catch(e){} }
+function clearToken(){ token=''; try{ sessionStorage.removeItem('_t'); }catch(e){} }
+
+// Rate limit local
+var fallos=0, bloqHasta=0;
+function esBloqueado(){ return bloqHasta && Date.now()<bloqHasta; }
+function registrarFallo(){ fallos++; if(fallos>=5){ bloqHasta=Date.now()+600000; fallos=0; } }
+function resetFallos(){ fallos=0; bloqHasta=0; }
+
+// Inactividad — 30 min
+var inactT=null;
+function resetInact(){
+  clearTimeout(inactT);
+  inactT=setTimeout(function(){
+    if(getToken()){ api({action:'cerrarSesion'}); clearToken(); clearCache(); doOut(); showMsg('lMsg','Sesión cerrada por inactividad.','warning'); }
+  },1800000);
+}
+document.addEventListener('click',resetInact);
+document.addEventListener('touchstart',resetInact);
+
+// ═══════════════════════════════════════════════
+// CACHE
+// ═══════════════════════════════════════════════
+var CP={p:[],logo:'',ts:0,TTL:1800000};
+function cacheOk(){ return CP.p.length>0 && Date.now()-CP.ts<CP.TTL; }
+function setCache(arr,logo){ CP.p=arr||[]; CP.logo=logo||''; CP.ts=Date.now(); try{ sessionStorage.setItem('cp',JSON.stringify(CP.p)); sessionStorage.setItem('cl',CP.logo); sessionStorage.setItem('ct',String(CP.ts)); }catch(e){} }
+function loadCache(){ try{ var t=+sessionStorage.getItem('ct'); if(Date.now()-t<CP.TTL){ var d=sessionStorage.getItem('cp'); if(d){ CP.p=JSON.parse(d); CP.logo=sessionStorage.getItem('cl')||''; CP.ts=t; return true; } } }catch(e){} return false; }
+function clearCache(){ CP.p=[]; CP.logo=''; CP.ts=0; try{ sessionStorage.removeItem('cp'); sessionStorage.removeItem('cl'); sessionStorage.removeItem('ct'); }catch(e){} }
+function findP(id){ var s=String(id).trim(); for(var i=0;i<CP.p.length;i++){ if(CP.p[i].id===s) return CP.p[i]; } return null; }
+function filterP(modo,a,b,ids){
+  if(modo==='todos') return CP.p;
+  if(modo==='rango'){ var ia=parseInt(a),ib=parseInt(b); return CP.p.filter(function(x){ var n=parseInt(x.id); return !isNaN(n)&&n>=ia&&n<=ib; }); }
+  if(modo==='individual'){ var arr=String(ids).split(',').map(function(x){return x.trim();}); return CP.p.filter(function(x){ return arr.indexOf(x.id)>=0; }); }
+  return [];
+}
+
+// ═══════════════════════════════════════════════
+// COLA DE ESCRITURA EN BACKGROUND
+// ═══════════════════════════════════════════════
+var WQ={q:[],busy:false};
+function wqAdd(payload){
+  WQ.q.push({p:payload,tries:0});
+  updateBadge();
+  if(!WQ.busy) wqRun();
+}
+function wqRun(){
+  if(WQ.busy||!WQ.q.length) return;
+  WQ.busy=true;
+  var item=WQ.q[0];
+  api(item.p).then(function(){
+    WQ.q.shift(); WQ.busy=false; updateBadge(); wqRun();
+  }).catch(function(){
+    item.tries++;
+    WQ.busy=false;
+    if(item.tries>=3){
+      WQ.q.shift(); updateBadge();
+      beep('error');
+      showSR('⚠️ FALLO: No se pudo registrar ID '+( item.p.id||'?')+'\nAvisa al supervisor. Verifica conexión.','danger');
+    } else {
+      setTimeout(wqRun,4000);
+    }
+  });
+}
+function updateBadge(){
+  var el=document.getElementById('qBadge');
+  if(!el) return;
+  if(WQ.q.length>0){ el.textContent='⏳ '+WQ.q.length+' registro'+(WQ.q.length>1?'s pendientes':' pendiente'); el.style.display='block'; }
+  else el.style.display='none';
+}
+
+// ═══════════════════════════════════════════════
+// SONIDOS (Web Audio API)
+// ═══════════════════════════════════════════════
+var AC=null;
+function getAC(){ if(!AC) try{ AC=new(window.AudioContext||window.webkitAudioContext)(); }catch(e){} return AC; }
+function beep(tipo){
+  var ctx=getAC(); if(!ctx) return;
+  try{
+    var o=ctx.createOscillator(), g=ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    var t=ctx.currentTime;
+    if(tipo==='ok'){
+      o.frequency.setValueAtTime(880,t); o.frequency.setValueAtTime(1320,t+0.12);
+      g.gain.setValueAtTime(0.3,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.28);
+      o.start(t); o.stop(t+0.28);
+    } else if(tipo==='ya'){
+      o.frequency.setValueAtTime(660,t);
+      g.gain.setValueAtTime(0.2,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+      o.start(t); o.stop(t+0.18);
+    } else {
+      o.frequency.setValueAtTime(280,t); o.frequency.setValueAtTime(140,t+0.15);
+      g.gain.setValueAtTime(0.35,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.35);
+      o.start(t); o.stop(t+0.35);
+    }
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════
+// API
+// ═══════════════════════════════════════════════
+function api(payload){
+  var body=Object.assign({},payload,{_s:SEC});
+  if(payload.action!=='validarLogin') body._t=getToken();
+  return fetch(URL,{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'text/plain'}})
+    .then(function(r){ return r.json(); })
+    .then(function(r){
+      if(r&&r.expired){ clearToken(); clearCache(); doOut(); showMsg('lMsg','Sesión expirada. Inicia sesión.','warning'); }
+      return r;
+    });
+}
+
+function precargar(){
+  return api({action:'precargarTodo'}).then(function(r){
+    if(r&&r.success){ setCache(r.personal,r.logo); if(r.logo) poneLogo(r.logo); }
+    return r;
+  });
+}
+
+// ═══════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════
+function showMsg(id,txt,tipo){
+  var el=document.getElementById(id);
+  if(!el) return;
+  el.textContent=txt; el.className='mb on '+tipo;
+  if(tipo==='success'||tipo==='danger') setTimeout(function(){ el.className='mb'; },5000);
+}
+function showSR(txt,tipo){
+  var el=document.getElementById('sResult');
+  if(!el) return;
+  el.textContent=txt; el.className='sr on '+tipo;
+  if(tipo==='success'||tipo==='danger') setTimeout(function(){ el.className='sr'; },4000);
+}
+function poneLogo(b64){
+  if(!b64) return;
+  var bg=document.getElementById('logoBg');
+  bg.innerHTML='';
+  var im=document.createElement('img');
+  im.src=b64; bg.appendChild(im);
+}
+function prog(pct,txt){ document.getElementById('pFill').style.width=pct+'%'; document.getElementById('pTxt').textContent=txt; }
+
+// ═══════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════
+function showTab(v){
+  ['Scan','Gen','Report'].forEach(function(id){
+    document.getElementById('v'+id).classList.toggle('hidden',id!==v);
+    document.getElementById('t'+id).classList.toggle('on',id===v);
+  });
+  if(v==='Scan') startScan();
+  else{ stopScan(); if(v==='Report') loadReport(); }
+}
+
+// ═══════════════════════════════════════════════
+// LOGIN
+// ═══════════════════════════════════════════════
+function doLogin(){
+  // Captura cualquier error desde el primer momento
+  try {
+    var email=document.getElementById('iEmail').value.trim();
+    var pass=document.getElementById('iPass').value.trim();
+
+    showMsg('lMsg','Paso 1: leyendo campos...','info');
+
+    if(!email||!pass){ showMsg('lMsg','Completa ambos campos.','danger'); return; }
+
+    showMsg('lMsg','Paso 2: verificando bloqueo...','info');
+
+    if(esBloqueado()){
+      var seg=Math.ceil((bloqHasta-Date.now())/1000);
+      showMsg('lMsg','Bloqueado. Espera '+seg+' seg.','danger');
+      return;
+    }
+
+    var btn=document.getElementById('btnLogin');
+    btn.disabled=true; btn.textContent='Verificando…';
+    showMsg('lMsg','Paso 3: conectando con servidor...','info');
+
+    fetch(URL,{
+      method:'POST',
+      body:JSON.stringify({action:'validarLogin',correo:email,password:pass,_s:SEC}),
+      headers:{'Content-Type':'text/plain'}
+    })
+    .then(function(r){
+      showMsg('lMsg','Paso 4: respuesta HTTP '+r.status,'info');
+      return r.text(); // usar text() primero para ver respuesta cruda
+    })
+    .then(function(txt){
+      showMsg('lMsg','Paso 5: respuesta='+txt.substring(0,120),'info');
+      var r;
+      try{ r=JSON.parse(txt); } catch(pe){ 
+        btn.disabled=false; btn.textContent='Ingresar al sistema';
+        showMsg('lMsg','Error JSON: '+txt.substring(0,100),'danger'); 
+        return; 
+      }
+      btn.disabled=false; btn.textContent='Ingresar al sistema';
+      if(!r||!r.success){
+        registrarFallo();
+        var rest=5-fallos;
+        showMsg('lMsg',(r&&r.message?r.message:'Inválido')+' ('+rest+' intentos restantes)','danger');
+        return;
+      }
+      // ✅ LOGIN OK
+      showMsg('lMsg','✅ Login OK! Entrando...','success');
+      resetFallos();
+      setToken(r.token||'');
+      setTimeout(function(){
+        document.getElementById('loginView').classList.add('hidden');
+        document.getElementById('mainView').classList.remove('hidden');
+        document.getElementById('lMsg').className='mb';
+        document.getElementById('topDate').textContent=
+          new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+        resetInact();
+        startScan();
+        if(!cacheOk()){
+          precargar().catch(function(e){ console.warn('Precarga:',e); });
+        } else {
+          if(CP.logo) poneLogo(CP.logo);
+        }
+      }, 800);
+    })
+    .catch(function(err){
+      btn.disabled=false; btn.textContent='Ingresar al sistema';
+      showMsg('lMsg','❌ Fetch falló: '+String(err),'danger');
+    });
+
+  } catch(fatalErr) {
+    // Error fatal de JS — lo muestra en pantalla
+    document.getElementById('lMsg').textContent = '💥 Error JS: '+String(fatalErr);
+    document.getElementById('lMsg').className = 'mb on danger';
+    document.getElementById('btnLogin').disabled = false;
+    document.getElementById('btnLogin').textContent = 'Ingresar al sistema';
+  }
+}
+
+function doOut(){
+  stopScan(); clearTimeout(inactT);
+  if(getToken()) api({action:'cerrarSesion'}).catch(function(){});
+  clearToken();
+  document.getElementById('mainView').classList.add('hidden');
+  document.getElementById('loginView').classList.remove('hidden');
+  document.getElementById('iEmail').value='';
+  document.getElementById('iPass').value='';
+}
+
+// ═══════════════════════════════════════════════
+// SCANNER
+// ═══════════════════════════════════════════════
+var QR=null,scanning=false,processing=false;
+var scanned={};
+
+function startScan(){
+  if(scanning) return;
+  if(QR){ try{QR.clear();}catch(e){} QR=null; }
+  QR=new Html5Qrcode('reader');
+  var cfg={fps:10,qrbox:{width:220,height:220},aspectRatio:1.0};
+  function tryC(c){ return QR.start(c,cfg,onQR,function(){}); }
+  tryC({facingMode:'environment'}).then(function(){scanning=true;})
+    .catch(function(){
+      tryC({facingMode:'user'}).then(function(){scanning=true;})
+        .catch(function(){
+          Html5Qrcode.getCameras().then(function(cams){
+            if(!cams||!cams.length){ showSR('No se encontró cámara.','danger'); return; }
+            tryC(cams[cams.length-1].id).then(function(){scanning=true;});
+          }).catch(function(){ showSR('Sin acceso a cámara. Revisa permisos.','danger'); });
+        });
+    });
+}
+
+function stopScan(){
+  if(QR&&scanning) QR.stop().then(function(){scanning=false;}).catch(function(){scanning=false;});
+}
+
+function onQR(raw){
+  if(processing) return;
+
+  // Verificar firma del QR
+  var parts=raw.split('-QR-');
+  if(parts.length!==2||parts[1].trim()!==SEC){
+    processing=true; beep('error');
+    showSR('❌ QR inválido — no pertenece a este sistema.','danger');
+    setTimeout(function(){processing=false;},2500); return;
+  }
+  var id=parts[0].trim();
+
+  // Anti-doble escaneo: 8 segundos
+  var now=Date.now();
+  if(scanned[id]&&(now-scanned[id])<8000){
+    beep('ya'); showSR('⚠️ ID '+id+' ya escaneado. Espera unos segundos.','warning'); return;
+  }
+  scanned[id]=now;
+  processing=true;
+
+  var persona=findP(id);
+  if(!persona){
+    // ID no está en lista — puede ser que el cache no haya cargado aún
+    if(!cacheOk()){
+      beep('error'); showSR('⚠️ Lista no cargada. Espera y vuelve a escanear.','warning');
+      setTimeout(function(){processing=false;},2500); return;
+    }
+    // Cache cargado pero ID no existe — rechazar
+    beep('error');
+    showSR('❌ ID '+id+' no registrado en el sistema.','danger');
+    setTimeout(function(){processing=false;},2500); return;
+  }
+
+  beep('ok');
+  showSR('✅ Acceso registrado\n👤 '+persona.nombre+'\n🏢 '+persona.empresa,'success');
+  wqAdd({action:'registrarEscaneo',id:raw});
+  setTimeout(function(){processing=false;},2500);
+}
+
+// ═══════════════════════════════════════════════
+// GENERADOR PDF
+// ═══════════════════════════════════════════════
+document.getElementById('modoGen').addEventListener('change',function(){
+  var v=this.value;
+  document.getElementById('pRango').classList.toggle('hidden',v!=='rango');
+  document.getElementById('pInd').classList.toggle('hidden',v!=='individual');
+});
+
+document.getElementById('btnPDF').addEventListener('click',async function(){
+  var modo=document.getElementById('modoGen').value;
+  var a=document.getElementById('rIni').value;
+  var b=document.getElementById('rFin').value;
+  var ids=document.getElementById('rIds').value;
+  var btn=this;
+  if(modo==='rango'&&(!a||!b)){ showMsg('gMsg','Ingresa el rango completo.','warning'); return; }
+  if(modo==='individual'&&!ids.trim()){ showMsg('gMsg','Ingresa al menos un ID.','warning'); return; }
+  btn.disabled=true;
+  document.getElementById('pWrap').className='pw2 on';
+  document.getElementById('gMsg').className='mb';
+  prog(5,'Preparando…');
+  try{
+    var personal=filterP(modo,a,b,ids);
+    if(!personal.length&&!cacheOk()){ prog(10,'Cargando datos…'); await precargar(); personal=filterP(modo,a,b,ids); }
+    if(!personal.length){ showMsg('gMsg','❌ Sin registros.','danger'); btn.disabled=false; document.getElementById('pWrap').className='pw2'; return; }
+    prog(15,'Generando QR…');
+    var qrMap={}, qDiv=document.createElement('div');
+    qDiv.style.cssText='position:fixed;left:-9999px;top:-9999px;width:200px;height:200px;overflow:hidden';
+    document.body.appendChild(qDiv);
+    for(var i=0;i<personal.length;i++){
+      var p=personal[i];
+      qrMap[p.id]=await new Promise(function(res){
+        var pid=p.id; qDiv.innerHTML='';
+        try{
+          // QR contiene ID-QR-SECRET para protección contra falsificación
+          new QRCode(qDiv,{text:pid+'-QR-'+SEC,width:200,height:200,correctLevel:QRCode.CorrectLevel.H});
+          setTimeout(function(){ var cv=qDiv.querySelector('canvas'),im=qDiv.querySelector('img'); res(cv?cv.toDataURL('image/png'):(im&&im.src?im.src:'')); },80);
+        }catch(e){res('');}
+      });
+      prog(15+Math.round((i+1)/personal.length*55),'QR '+(i+1)+' de '+personal.length+'…');
+    }
+    document.body.removeChild(qDiv);
+    prog(72,'Construyendo PDF…');
+    var jsPDFClass = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if(!jsPDFClass) throw new Error('jsPDF no cargó correctamente. Recarga la página.');
+    var doc=new jsPDFClass({orientation:'portrait',unit:'mm',format:'letter'});
+    var pW=215.9,pH=279.4,mg=8,cols=3,rows=3,gap=4;
+    var cW=(pW-mg*2-(cols-1)*gap)/cols,cH=(pH-mg*2-(rows-1)*gap)/rows;
+    for(var j=0;j<personal.length;j++){
+      var per=personal[j];
+      if(j>0&&j%(cols*rows)===0) doc.addPage();
+      var col=j%cols,row=Math.floor(j/cols)%rows;
+      var x=mg+col*(cW+gap),y=mg+row*(cH+gap);
+      doc.setFillColor(255,255,255); doc.setDrawColor(50,50,50); doc.setLineWidth(0.4); doc.roundedRect(x,y,cW,cH,3,3,'FD');
+      var cy=y+3;
+      if(CP.logo){ try{var lw=22,lh=9,lx=x+(cW-lw)/2; doc.addImage(CP.logo,'PNG',lx,cy,lw,lh,'','FAST'); cy+=lh+2;}catch(e){cy+=3;} } else cy+=2;
+      doc.setFont('helvetica','bold'); doc.setFontSize(5.5); doc.setTextColor(70,70,70);
+      var eL=doc.splitTextToSize(per.empresa.toUpperCase(),cW-4); doc.text(eL,x+cW/2,cy,{align:'center'}); cy+=eL.length*3.2+2;
+      var qr=qrMap[per.id],qrSz=32,qx=x+(cW-qrSz)/2;
+      if(qr) doc.addImage(qr,'PNG',qx,cy,qrSz,qrSz,'','FAST');
+      else{ doc.setDrawColor(180,180,180); doc.rect(qx,cy,qrSz,qrSz); }
+      cy+=qrSz+2;
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(26,86,219); doc.text('ID: '+per.id,x+cW/2,cy,{align:'center'}); cy+=5;
+      doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(20,20,20);
+      var nL=doc.splitTextToSize(per.nombre,cW-4); doc.text(nL,x+cW/2,cy,{align:'center'}); cy+=nL.length*3.8+1;
+      doc.setFont('helvetica','normal'); doc.setFontSize(6); doc.setTextColor(100,100,100);
+      var pL=doc.splitTextToSize(per.puesto,cW-4); doc.text(pL,x+cW/2,cy,{align:'center'});
+    }
+    prog(98,'Guardando…');
+    // Descarga compatible con todos los navegadores
+    try {
+      doc.save('Gafetes_QR.pdf');
+    } catch(saveErr) {
+      // Fallback si save() falla
+      var pdfData = doc.output('datauristring');
+      var a = document.createElement('a');
+      a.href = pdfData; a.download = 'Gafetes_QR.pdf';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+    prog(100,'✅ Descargado');
+    showMsg('gMsg','✅ PDF con '+personal.length+' gafetes generado','success');
+  }catch(err){ showMsg('gMsg','❌ Error: '+err.message,'danger'); console.error(err); }
+  finally{ btn.disabled=false; setTimeout(function(){document.getElementById('pWrap').className='pw2';},3000); }
+});
+
+// ═══════════════════════════════════════════════
+// REPORTE
+// ═══════════════════════════════════════════════
+function loadReport(){
+  var btn=document.getElementById('btnRef');
+  btn.disabled=true; btn.textContent='⏳ Cargando…';
+  api({action:'obtenerEstadisticasHoy'}).then(function(r){
+    btn.disabled=false; btn.textContent='🔄 Actualizar reporte';
+    if(r&&r.success){ document.getElementById('sM').textContent=r.manana; document.getElementById('sT').textContent=r.tarde; document.getElementById('sTot').textContent=r.total; }
+    else showMsg('rMsg',r?r.message:'Error','danger');
+  }).catch(function(){ btn.disabled=false; btn.textContent='🔄 Actualizar reporte'; showMsg('rMsg','Error de red','danger'); });
+}
+
+// ═══════════════════════════════════════════════
+// EVENTOS
+// ═══════════════════════════════════════════════
+document.getElementById('btnLogin').addEventListener('click', doLogin);
+document.getElementById('iPass').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+document.getElementById('eyeBtn').addEventListener('click',  function(){ var i=document.getElementById('iPass'); i.type=i.type==='password'?'text':'password'; });
+document.getElementById('btnOut').addEventListener('click',  doOut);
+document.getElementById('tScan').addEventListener('click',   function(){ showTab('Scan'); });
+document.getElementById('tGen').addEventListener('click',    function(){ showTab('Gen'); });
+document.getElementById('tReport').addEventListener('click', function(){ showTab('Report'); });
+document.getElementById('btnRef').addEventListener('click',  loadReport);
+document.getElementById('btnSend').addEventListener('click', function(){
+  var btn=this; btn.disabled=true; btn.textContent='⏳ Enviando…';
+  api({action:'enviarReporteManual'}).then(function(r){ btn.disabled=false; btn.textContent='📧 Enviar reporte ahora'; showMsg('rMsg',r?r.message:'Error',r&&r.success?'success':'danger'); })
+    .catch(function(){ btn.disabled=false; btn.textContent='📧 Enviar reporte ahora'; showMsg('rMsg','Error al enviar','danger'); });
+});
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+loadCache();
+if(CP.logo) poneLogo(CP.logo);
+</script>
+</body>
+</html>
