@@ -244,39 +244,35 @@ function filterP(modo,a,b,ids){
 }
 
 // ═══════════════════════════════════════════════
-// COLA DE ESCRITURA EN BACKGROUND
+// COLA DE ESCRITURA EN LOTES — hasta 10 por llamada
 // ═══════════════════════════════════════════════
-var WQ={q:[],busy:false};
+var WQ={q:[],busy:false,BATCH:10,tries:0};
 function wqAdd(payload){
-  WQ.q.push({p:payload,tries:0});
+  WQ.q.push(payload);
   updateBadge();
-  if(!WQ.busy) wqRun();
+  if(!WQ.busy) setTimeout(wqRun,300);
 }
 function wqRun(){
   if(WQ.busy||!WQ.q.length) return;
   WQ.busy=true;
-  var item=WQ.q[0];
-  api(item.p).then(function(){
-    WQ.q.shift(); WQ.busy=false; updateBadge(); wqRun();
-  }).catch(function(){
-    item.tries++;
-    WQ.busy=false;
-    if(item.tries>=3){
-      WQ.q.shift(); updateBadge();
-      beep('error');
-      showSR('⚠️ FALLO: No se pudo registrar ID '+( item.p.id||'?')+'\nAvisa al supervisor. Verifica conexión.','danger');
-    } else {
-      setTimeout(wqRun,4000);
-    }
-  });
+  var lote=WQ.q.slice(0,WQ.BATCH);
+  api({action:'registrarLote',registros:lote.map(function(p){return p.id;})})
+    .then(function(r){
+      if(r&&r.success){ WQ.q.splice(0,lote.length); WQ.tries=0; }
+      else{ WQ.tries++; if(WQ.tries>=3){ var ids=lote.map(function(p){return (p.id||'').split('-QR-')[0];}).join(', '); WQ.q.splice(0,lote.length); WQ.tries=0; beep('error'); showSR('FALLO al registrar: '+ids,'danger'); } }
+      WQ.busy=false; updateBadge(); if(WQ.q.length) setTimeout(wqRun,200);
+    })
+    .catch(function(){
+      WQ.tries++; WQ.busy=false;
+      if(WQ.tries>=3){ var ids=lote.map(function(p){return (p.id||'').split('-QR-')[0];}).join(', '); WQ.q.splice(0,lote.length); WQ.tries=0; beep('error'); showSR('Sin red. No registrados: '+ids,'danger'); }
+      updateBadge(); setTimeout(wqRun,4000);
+    });
 }
 function updateBadge(){
-  var el=document.getElementById('qBadge');
-  if(!el) return;
-  if(WQ.q.length>0){ el.textContent='⏳ '+WQ.q.length+' registro'+(WQ.q.length>1?'s pendientes':' pendiente'); el.style.display='block'; }
+  var el=document.getElementById('qBadge'); if(!el) return;
+  if(WQ.q.length>0){ el.textContent='Sincronizando '+WQ.q.length+' registro'+(WQ.q.length>1?'s':'')+'...'; el.style.display='block'; }
   else el.style.display='none';
 }
-
 // ═══════════════════════════════════════════════
 // SONIDOS (Web Audio API)
 // ═══════════════════════════════════════════════
@@ -642,4 +638,49 @@ loadCache();
 if(CP.logo) poneLogo(CP.logo);
 </script>
 </body>
-</html>
+</html>// ═══════════════════════════════════════════════
+// COLA DE ESCRITURA EN LOTES — hasta 10 por llamada
+// ═══════════════════════════════════════════════
+var WQ={q:[],busy:false,BATCH:10,tries:0};
+
+function wqAdd(payload){
+  WQ.q.push(payload);
+  updateBadge();
+  if(!WQ.busy) setTimeout(wqRun,300);
+}
+
+function wqRun(){
+  if(WQ.busy||!WQ.q.length) return;
+  WQ.busy=true;
+  var lote=WQ.q.slice(0,WQ.BATCH);
+  api({action:'registrarLote',registros:lote.map(function(p){return p.id;})})
+    .then(function(r){
+      if(r&&r.success){ WQ.q.splice(0,lote.length); WQ.tries=0; }
+      else {
+        WQ.tries++;
+        if(WQ.tries>=3){
+          var ids=lote.map(function(p){return (p.id||'').split('-QR-')[0];}).join(', ');
+          WQ.q.splice(0,lote.length); WQ.tries=0;
+          beep('error'); showSR('⚠️ FALLO al registrar IDs: '+ids,'danger');
+        }
+      }
+      WQ.busy=false; updateBadge();
+      if(WQ.q.length) setTimeout(wqRun,200);
+    })
+    .catch(function(){
+      WQ.tries++; WQ.busy=false;
+      if(WQ.tries>=3){
+        var ids=lote.map(function(p){return (p.id||'').split('-QR-')[0];}).join(', ');
+        WQ.q.splice(0,lote.length); WQ.tries=0;
+        beep('error'); showSR('⚠️ Sin red. No se registraron: '+ids,'danger');
+      }
+      updateBadge(); setTimeout(wqRun,4000);
+    });
+}
+
+function updateBadge(){
+  var el=document.getElementById('qBadge');
+  if(!el) return;
+  if(WQ.q.length>0){ el.textContent='⏳ '+WQ.q.length+' registro'+(WQ.q.length>1?'s pendientes':' pendiente'); el.style.display='block'; }
+  else el.style.display='none';
+}
